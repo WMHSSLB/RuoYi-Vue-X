@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	
     <groupId>com.ruoyi</groupId>
-    <artifactId>ruoyi</artifactId>
+    <artifactId>ruoyi-vue-x</artifactId>
     <version>3.9.2</version>
 
     <name>ruoyi</name>
