@@ -90,6 +90,17 @@ public class BaseController
         return rspData;
     }
 
+    /*//    @SuppressWarnings({ "rawtypes", "unchecked" })
+    protected <T> TableDataInfo getDataTable(Page<T> page)
+    {
+        TableDataInfo rspData = new TableDataInfo();
+        rspData.setCode(HttpStatus.SUCCESS);
+        rspData.setMsg("查询成功");
+        rspData.setRows(page.getRecords());
+        rspData.setTotal(page.getTotal());
+        return rspData;
+    }*/
+
     /**
      * 返回成功
      */
