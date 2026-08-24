@@ -132,6 +132,11 @@
             <version>3.5.10</version>
         </dependency>
 
+        <!--  lombok工具-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
