@@ -1,5 +1,6 @@
 package com.ruoyi.common.utils.poi;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.alibaba.excel.EasyExcel;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RegExUtils;
@@ -241,6 +243,7 @@ public class ExcelUtil<T>
         this.sheetName = sheetName;
         this.type = type;
         this.title = title;
+        // 初始化导出上下文：先解析@Excel注解字段，再创建工作簿、标题和子表头结构。
         createExcelField();
         createWorkbook();
         createTitle();
@@ -257,6 +260,7 @@ public class ExcelUtil<T>
             int titleLastCol = this.fields.size() - 1;
             if (isSubList())
             {
+                // 子列表字段会在Excel中展开为多列，大标题合并范围需要包含展开后的子列。
                 for (List<Field> currentSubFields : subFieldsMap.values())
                 {
                     titleLastCol = titleLastCol + currentSubFields.size() - 1;
@@ -280,6 +284,7 @@ public class ExcelUtil<T>
         {
             Row subRow = sheet.createRow(rownum);
             int column = 0;
+            // 子列表模式采用两层表头：父对象字段占一列，子集合字段按子属性数横向展开。
             for (Object[] objects : fields)
             {
                 Field field = (Field) objects[0];
@@ -367,6 +372,7 @@ public class ExcelUtil<T>
         }
         boolean isXSSFWorkbook = !(wb instanceof HSSFWorkbook);
         Map<String, List<PictureData>> pictures = null;
+        // xls和xlsx保存图片的底层结构不同，需要按工作簿类型分别读取图片索引。
         if (isXSSFWorkbook)
         {
             pictures = getSheetPictures07((XSSFSheet) sheet, (XSSFWorkbook) wb);
@@ -392,6 +398,7 @@ public class ExcelUtil<T>
                 Cell cell = heard.getCell(i);
                 if (StringUtils.isNotNull(cell))
                 {
+                    // 先建立“表头名称 -> 列下标”映射，导入时即可不依赖Excel列顺序。
                     String value = this.getCellValue(heard, i).toString();
                     cellMap.put(value, i);
                 }
@@ -405,6 +412,7 @@ public class ExcelUtil<T>
                 Integer column = cellMap.get(attr.name());
                 if (column != null)
                 {
+                    // 只导入Excel文件中实际存在的列，允许模板按需裁剪部分列。
                     fieldsMap.put(column, objects);
                 }
             }
@@ -493,12 +501,14 @@ public class ExcelUtil<T>
                         }
                         if (StringUtils.isNotEmpty(attr.readConverterExp()))
                         {
+                            // 导入时将Excel中的展示文本反向转换为系统内部保存值。
                             val = reverseByExp(Convert.toStr(val), attr.readConverterExp(), attr.separator());
                         }
                         else if (StringUtils.isNotEmpty(attr.dictType()))
                         {
                             if (!sysDictMap.containsKey(attr.dictType() + val))
                             {
+                                // 字典反查结果缓存到sysDictMap，避免同一导入文件重复查字典。
                                 String dictValue = reverseDictByExp(Convert.toStr(val), attr.dictType(), attr.separator());
                                 sysDictMap.put(attr.dictType() + val, dictValue);
                             }
@@ -514,6 +524,7 @@ public class ExcelUtil<T>
                             List<PictureData> images = pictures.get(row.getRowNum() + "_" + entry.getKey());
                             for (PictureData picture : images)
                             {
+                                // 图片导入先落盘到临时目录，实体字段保存可回显的文件路径。
                                 byte[] data = picture.getData();
                                 String fileName = FileUtils.writeImportBytes(data);
                                 propertyString.append(fileName).append(SEPARATOR);
@@ -579,6 +590,7 @@ public class ExcelUtil<T>
      */
     public void exportExcel(HttpServletResponse response, List<T> list, String sheetName, String title)
     {
+        // 传统POI导出直接写响应流，适用于若依原有download方法。
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setCharacterEncoding("utf-8");
         this.init(list, sheetName, title, Type.EXPORT);
@@ -597,6 +609,7 @@ public class ExcelUtil<T>
         {
             return;
         }
+        // 多Sheet场景先统一构建工作簿，再一次性写入响应，避免重复提交响应流。
         SXSSFWorkbook wb = buildWorkbook(sheets);
         try
         {
@@ -627,6 +640,7 @@ public class ExcelUtil<T>
         {
             return AjaxResult.error("导出数据不能为空");
         }
+        // 文件下载模式需要生成临时文件，再把文件名交给前端二次下载。
         SXSSFWorkbook wb = buildWorkbook(sheets);
         OutputStream out = null;
         try
@@ -661,6 +675,7 @@ public class ExcelUtil<T>
         SXSSFWorkbook wb = new SXSSFWorkbook(500);
         for (ExcelSheet<?> excelSheet : sheets)
         {
+            // 每个ExcelSheet使用自己的实体类型和数据集合，共用同一个SXSSFWorkbook。
             ExcelUtil util = new ExcelUtil(excelSheet.getClazz());
             util.initWithWorkbook(wb, excelSheet.getList(), excelSheet.getSheetName(), excelSheet.getTitle());
             util.writeSheet();
@@ -690,6 +705,7 @@ public class ExcelUtil<T>
         this.rownum    = 0;
         this.wb        = wb;
         this.sheet     = wb.createSheet(sheetName);
+        // 追加Sheet时复用传入工作簿，但字段、样式、表头仍按当前实体重新初始化。
         createExcelField();
         this.styles    = createStyles(wb);
         createTitle();
@@ -755,6 +771,7 @@ public class ExcelUtil<T>
     {
         try
         {
+            // writeSheet负责创建Sheet页、表头、数据行和统计行。
             writeSheet();
             wb.write(response.getOutputStream());
         }
@@ -778,6 +795,7 @@ public class ExcelUtil<T>
         OutputStream out = null;
         try
         {
+            // 生成到本地下载目录，返回文件名给前端通用下载接口。
             writeSheet();
             String filename = encodingFilename(sheetName);
             out = new FileOutputStream(getAbsoluteFile(filename));
@@ -805,6 +823,7 @@ public class ExcelUtil<T>
         int sheetNo = Math.max(1, (int) Math.ceil(list.size() * 1.0 / sheetSize));
         for (int index = 0; index < sheetNo; index++)
         {
+            // 单Sheet最大行数受Excel格式限制，超出时自动拆分为多个Sheet。
             createSheet(sheetNo, index);
 
             // 产生一行
@@ -817,6 +836,7 @@ public class ExcelUtil<T>
                 Excel excel = (Excel) os[1];
                 if (Collection.class.isAssignableFrom(field.getType()))
                 {
+                    // 子列表字段按子对象的@Excel字段逐列输出表头。
                     List<Field> currentSubFields = subFieldsMap.get(field.getName());
                     for (Field subField : currentSubFields)
                     {
@@ -854,6 +874,7 @@ public class ExcelUtil<T>
             Row row = sheet.createRow(currentRowNum);
             T vo = (T) list.get(i);
             int column = 0;
+            // 子列表会占用多行，父对象字段需要按子列表最大行数进行纵向合并。
             int maxSubListSize = getCurrentMaxSubListSize(vo);
             for (Object[] os : fields)
             {
@@ -870,6 +891,7 @@ public class ExcelUtil<T>
                             int subIndex = 0;
                             for (Object subVo : subList)
                             {
+                                // 子对象每条记录写入父对象当前行之后的连续行。
                                 Row subRow = sheet.getRow(currentRowNum + subIndex);
                                 if (subRow == null)
                                 {
@@ -898,6 +920,7 @@ public class ExcelUtil<T>
                     addCell(excel, row, vo, field, column);
                     if (maxSubListSize > 1 && excel.needMerge())
                     {
+                        // 父对象普通字段在子列表多行场景下纵向合并，保持视觉上属于同一条主记录。
                         sheet.addMergedRegion(new CellRangeAddress(currentRowNum, currentRowNum + maxSubListSize - 1, column, column));
                     }
                     column++;
@@ -913,6 +936,7 @@ public class ExcelUtil<T>
     private int getCurrentMaxSubListSize(T vo)
     {
         int maxSubListSize = 1;
+        // 默认主记录至少占一行；存在子列表时按最长子列表决定主记录实际占用行数。
         for (Object[] os : fields)
         {
             Field field = (Field) os[0];
@@ -945,6 +969,7 @@ public class ExcelUtil<T>
     {
         // 写入各条记录,每条记录对应excel表中的一行
         Map<String, CellStyle> styles = new HashMap<String, CellStyle>();
+        // 公共样式按用途缓存，避免每个单元格重复创建CellStyle导致超过Excel样式上限。
         CellStyle style = wb.createCellStyle();
         style.setAlignment(HorizontalAlignment.CENTER);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -986,6 +1011,7 @@ public class ExcelUtil<T>
 
         styles.putAll(annotationHeaderStyles(wb, styles));
 
+        // 根据@Excel注解扩展表头和数据列样式，支持颜色、对齐、文本格式等配置。
         styles.putAll(annotationDataStyles(wb));
 
         return styles;
@@ -1006,6 +1032,7 @@ public class ExcelUtil<T>
             String key = StringUtils.format("header_{}_{}", excel.headerColor(), excel.headerBackgroundColor());
             if (!headerStyles.containsKey(key))
             {
+                // 相同颜色组合只创建一次样式，后续列复用缓存。
                 CellStyle style = wb.createCellStyle();
                 style.cloneStyleFrom(styles.get("data"));
                 style.setAlignment(HorizontalAlignment.CENTER);
@@ -1042,6 +1069,7 @@ public class ExcelUtil<T>
             Excel excel = (Excel) os[1];
             if (Collection.class.isAssignableFrom(field.getType()))
             {
+                // 子列表字段的样式来自子对象属性上的@Excel注解。
                 ParameterizedType pt = (ParameterizedType) field.getGenericType();
                 Class<?> subClass = (Class<?>) pt.getActualTypeArguments()[0];
                 List<Field> subFields = FieldUtils.getFieldsListWithAnnotation(subClass, Excel.class);
@@ -1071,6 +1099,7 @@ public class ExcelUtil<T>
         String key = StringUtils.format("data_{}_{}_{}_{}_{}", excel.align(), excel.color(), excel.backgroundColor(), excel.cellType(), excel.wrapText());
         if (!styles.containsKey(key))
         {
+            // 样式key由注解决定，同配置字段共享同一个CellStyle。
             CellStyle style = wb.createCellStyle();
             style.setAlignment(excel.align());
             style.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -1116,6 +1145,7 @@ public class ExcelUtil<T>
             sheet.setDefaultColumnStyle(column, styles.get(StringUtils.format("data_{}_{}_{}_{}_{}", attr.align(), attr.color(), attr.backgroundColor(), attr.cellType(), attr.wrapText())));
             if (attr.needMerge())
             {
+                // 子列表表头有两行，普通字段需要合并上下两行保持表头整齐。
                 sheet.addMergedRegion(new CellRangeAddress(rownum - 1, rownum, column, column));
             }
         }
@@ -1149,11 +1179,13 @@ public class ExcelUtil<T>
         {
             if (StringUtils.isNotNull(value))
             {
+                // 数字列区分整数和小数写入，避免Excel中出现多余的小数位。
                 cell.setCellValue(StringUtils.contains(Convert.toStr(value), ".") ? Convert.toDouble(value) : Convert.toInt(value));
             }
         }
         else if (ColumnType.IMAGE == attr.cellType())
         {
+            // 图片列按当前单元格范围创建锚点，支持一个字段用逗号分隔多张图片。
             ClientAnchor anchor = new XSSFClientAnchor(0, 0, 0, 0, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1), cell.getRow().getRowNum() + 1);
             String propertyValue = Convert.toStr(value);
             if (StringUtils.isNotEmpty(propertyValue))
@@ -1175,6 +1207,7 @@ public class ExcelUtil<T>
     {
         if (sheet.getDrawingPatriarch() == null)
         {
+            // 当前Sheet没有绘图容器时先创建，否则图片无法写入。
             sheet.createDrawingPatriarch();
         }
         return sheet.getDrawingPatriarch();
@@ -1218,6 +1251,7 @@ public class ExcelUtil<T>
             {
                 if (!sysDictMap.containsKey("combo_" + attr.dictType()))
                 {
+                    // 下拉框读取字典时缓存标签列表，避免同一个字典类型重复查询。
                     String labels = DictUtils.getDictLabels(attr.dictType());
                     sysDictMap.put("combo_" + attr.dictType(), labels);
                 }
@@ -1257,6 +1291,7 @@ public class ExcelUtil<T>
                 {
                     if (subMergedLastRowNum >= subMergedFirstRowNum)
                     {
+                        // 子列表导出时，父记录字段需要合并子记录对应的多行。
                         sheet.addMergedRegion(new CellRangeAddress(subMergedFirstRowNum, subMergedLastRowNum, column, column));
                     }
                 }
@@ -1270,17 +1305,20 @@ public class ExcelUtil<T>
                 String dictType = attr.dictType();
                 if (StringUtils.isNotEmpty(dateFormat) && StringUtils.isNotNull(value))
                 {
+                    // 日期字段使用注解指定格式，同时克隆样式避免影响同列其他格式。
                     cell.setCellStyle(createCellStyle(cell.getCellStyle(), dateFormat));
                     cell.setCellValue(parseDateToStr(dateFormat, value));
                 }
                 else if (StringUtils.isNotEmpty(readConverterExp) && StringUtils.isNotNull(value))
                 {
+                    // readConverterExp用于把系统内部值转换为Excel展示值。
                     cell.setCellValue(convertByExp(Convert.toStr(value), readConverterExp, separator));
                 }
                 else if (StringUtils.isNotEmpty(dictType) && StringUtils.isNotNull(value))
                 {
                     if (!sysDictMap.containsKey(dictType + value))
                     {
+                        // 字典标签按“字典类型+字典值”缓存，减少导出大数据时的重复查找。
                         String lable = convertDictByExp(Convert.toStr(value), dictType, separator);
                         sysDictMap.put(dictType + value, lable);
                     }
@@ -1288,10 +1326,12 @@ public class ExcelUtil<T>
                 }
                 else if (value instanceof BigDecimal && -1 != attr.scale())
                 {
+                    // BigDecimal按注解指定精度和舍入模式处理，避免Excel显示原始高精度值。
                     cell.setCellValue((((BigDecimal) value).setScale(attr.scale(), attr.roundingMode())).doubleValue());
                 }
                 else if (!attr.handler().equals(ExcelHandlerAdapter.class))
                 {
+                    // 自定义处理器可接管单元格内容格式化，适合复杂业务展示。
                     cell.setCellValue(dataFormatHandlerAdapter(value, attr, cell));
                 }
                 else
@@ -1322,6 +1362,7 @@ public class ExcelUtil<T>
         CellStyle cached = cellStyleCache.get(key);
         if (cached != null)
         {
+            // 同一个基础样式和日期格式组合复用缓存，减少POI样式对象数量。
             return cached;
         }
         CellStyle style = wb.createCellStyle();
@@ -1348,6 +1389,7 @@ public class ExcelUtil<T>
         DataValidationHelper helper = sheet.getDataValidationHelper();
         DataValidationConstraint constraint = textlist.length > 0 ? helper.createExplicitListConstraint(textlist) : helper.createCustomConstraint("DD1");
         CellRangeAddressList regions = new CellRangeAddressList(firstRow, endRow, firstCol, endCol);
+        // 数据有效性绑定到指定单元格范围，实现模板下拉框和输入提示。
         DataValidation dataValidation = helper.createValidation(constraint, regions);
         if (StringUtils.isNotEmpty(promptContent))
         {
@@ -1406,6 +1448,7 @@ public class ExcelUtil<T>
             // 创建名称，可被其他单元格引用
             name = wb.createName();
             name.setNameName(hideSheetDataName);
+            // 使用命名区域突破Excel显式下拉列表长度限制。
             name.setRefersToFormula(hideSheetName + "!$A$1:$A$" + textlist.length);
         }
 
@@ -1452,6 +1495,7 @@ public class ExcelUtil<T>
         String[] convertSource = converterExp.split(SEPARATOR);
         for (String item : convertSource)
         {
+            // converterExp形如“0=男,1=女”，导出时匹配左侧编码并输出右侧标签。
             String[] itemArray = item.split("=");
             if (StringUtils.containsAny(propertyValue, separator))
             {
@@ -1489,6 +1533,7 @@ public class ExcelUtil<T>
         String[] convertSource = converterExp.split(SEPARATOR);
         for (String item : convertSource)
         {
+            // 导入时与convertByExp相反，匹配右侧标签并还原左侧编码。
             String[] itemArray = item.split("=");
             if (StringUtils.containsAny(propertyValue, separator))
             {
@@ -1549,6 +1594,7 @@ public class ExcelUtil<T>
     {
         try
         {
+            // 通过注解指定的handler实例化自定义格式化器，保持ExcelUtil本身不绑定业务逻辑。
             Object instance = excel.handler().getDeclaredConstructor().newInstance();
             Method formatMethod = excel.handler().getMethod("format", new Class[] { Object.class, String[].class, Cell.class, Workbook.class });
             value = formatMethod.invoke(instance, value, excel.args(), cell, this.wb);
@@ -1570,6 +1616,7 @@ public class ExcelUtil<T>
             Double temp = 0D;
             if (!statistics.containsKey(index))
             {
+                // statistics按列下标累计，最后统一写入合计行。
                 statistics.put(index, temp);
             }
             try
@@ -1590,6 +1637,7 @@ public class ExcelUtil<T>
     {
         if (statistics.size() > 0)
         {
+            // 统计行追加在当前Sheet最后一行之后。
             Row row = sheet.createRow(sheet.getLastRowNum() + 1);
             Set<Integer> keys = statistics.keySet();
             Cell cell = row.createCell(0);
@@ -1611,6 +1659,7 @@ public class ExcelUtil<T>
      */
     public String encodingFilename(String filename)
     {
+        // 添加UUID前缀避免多个用户同时导出同名文件时相互覆盖。
         return UUID.randomUUID() + "_" + filename + ".xlsx";
     }
 
@@ -1625,6 +1674,7 @@ public class ExcelUtil<T>
         File desc = new File(downloadPath);
         if (!desc.getParentFile().exists())
         {
+            // 下载目录可能在首次导出时尚未创建，这里按需创建父目录。
             desc.getParentFile().mkdirs();
         }
         return downloadPath;
@@ -1648,6 +1698,7 @@ public class ExcelUtil<T>
             String target = excel.targetAttr();
             if (target.contains("."))
             {
+                // 支持@Excel(targetAttr="dept.name")这类多级嵌套属性读取。
                 String[] targets = target.split("[.]");
                 for (String name : targets)
                 {
@@ -1688,6 +1739,7 @@ public class ExcelUtil<T>
     private void createExcelField()
     {
         this.fields = getFields();
+        // 按@Excel(sort)排序，保证导入模板和导出文件列顺序稳定。
         this.fields = this.fields.stream().sorted(Comparator.comparing(objects -> ((Excel) objects[1]).sort())).collect(Collectors.toList());
         this.maxHeight = getRowHeight();
     }
@@ -1701,10 +1753,12 @@ public class ExcelUtil<T>
         List<Field> tempFields = new ArrayList<>();
         subFieldsMap = new HashMap<>();
         subMethods = new HashMap<>();
+        // 同时扫描父类和当前类字段，兼容实体继承BaseEntity等公共字段。
         tempFields.addAll(Arrays.asList(clazz.getSuperclass().getDeclaredFields()));
         tempFields.addAll(Arrays.asList(clazz.getDeclaredFields()));
         if (StringUtils.isNotEmpty(includeFields))
         {
+            // includeFields存在时只导出指定字段，@Excels组合注解仍保留以支持多字段展开。
             for (Field field : tempFields)
             {
                 if (ArrayUtils.contains(this.includeFields, field.getName()) || field.isAnnotationPresent(Excels.class))
@@ -1715,6 +1769,7 @@ public class ExcelUtil<T>
         }
         else if (StringUtils.isNotEmpty(excludeFields))
         {
+            // excludeFields存在时排除指定字段，适合在通用导出基础上隐藏敏感列。
             for (Field field : tempFields)
             {
                 if (!ArrayUtils.contains(this.excludeFields, field.getName()))
@@ -1749,6 +1804,7 @@ public class ExcelUtil<T>
             if (Collection.class.isAssignableFrom(field.getType()))
             {
                 String fieldName = field.getName();
+                // 集合字段按一对多子列表处理，记录getter和子对象的@Excel字段。
                 subMethods.put(fieldName, getSubMethod(fieldName, clazz));
                 ParameterizedType pt = (ParameterizedType) field.getGenericType();
                 Class<?> subClass = (Class<?>) pt.getActualTypeArguments()[0];
@@ -1765,6 +1821,7 @@ public class ExcelUtil<T>
             {
                 if (StringUtils.isNotEmpty(includeFields))
                 {
+                    // 多注解字段通常用于同一对象引用导出多个目标属性，如user.deptName。
                     if (ArrayUtils.contains(this.includeFields, field.getName() + "." + attr.targetAttr())
                             && (attr != null && (attr.type() == Type.ALL || attr.type() == type)))
                     {
@@ -1802,6 +1859,7 @@ public class ExcelUtil<T>
      */
     public void createWorkbook()
     {
+        // SXSSFWorkbook按窗口大小刷盘，适合若依列表大数据量导出。
         this.wb = new SXSSFWorkbook(500);
         this.sheet = wb.createSheet();
         wb.setSheetName(0, sheetName);
@@ -1819,6 +1877,7 @@ public class ExcelUtil<T>
         // 设置工作表的名称.
         if (sheetNo > 1 && index > 0)
         {
+            // 第一个Sheet已在createWorkbook中创建，后续分页Sheet从index>0开始追加。
             this.sheet = wb.createSheet();
             this.createTitle();
             int actualIndex = wb.getSheetIndex(this.sheet);
@@ -1847,6 +1906,7 @@ public class ExcelUtil<T>
             {
                 if (cell.getCellType() == CellType.NUMERIC || cell.getCellType() == CellType.FORMULA)
                 {
+                    // POI将Excel日期和普通数字都读成NUMERIC，需要先判断是否为日期格式。
                     val = cell.getNumericCellValue();
                     if (DateUtil.isCellDateFormatted(cell))
                     {
@@ -1856,6 +1916,7 @@ public class ExcelUtil<T>
                     {
                         if ((Double) val % 1 != 0)
                         {
+                            // 小数用BigDecimal承接，减少double转字符串时的精度噪音。
                             val = new BigDecimal(val.toString());
                         }
                         else
@@ -1903,6 +1964,7 @@ public class ExcelUtil<T>
             Cell cell = row.getCell(i);
             if (cell != null && cell.getCellType() != CellType.BLANK)
             {
+                // 只要存在一个非空单元格，就认为该行有业务数据。
                 return false;
             }
         }
@@ -1928,6 +1990,7 @@ public class ExcelUtil<T>
                 {
                     HSSFPicture pic = (HSSFPicture) shape;
                     HSSFClientAnchor anchor = (HSSFClientAnchor) pic.getAnchor();
+                    // 以“行_列”作为图片索引，导入时可按单元格位置取回图片。
                     String picIndex = anchor.getRow1() + "_" + anchor.getCol1();
                     sheetIndexPicMap.computeIfAbsent(picIndex, k -> new ArrayList<>()).add(pic.getPictureData());
                 }
@@ -1958,6 +2021,7 @@ public class ExcelUtil<T>
                         XSSFPicture pic = (XSSFPicture) shape;
                         XSSFClientAnchor anchor = pic.getPreferredSize();
                         CTMarker ctMarker = anchor.getFrom();
+                        // 以“行_列”作为图片索引，保持xlsx与xls导入图片逻辑一致。
                         String picIndex = ctMarker.getRow() + "_" + ctMarker.getCol();
                         sheetIndexPicMap.computeIfAbsent(picIndex, k -> new ArrayList<>()).add(pic.getPictureData());
                     }
@@ -1987,10 +2051,12 @@ public class ExcelUtil<T>
         }
         else if (val instanceof LocalDateTime)
         {
+            // 兼容代码生成器新增的LocalDateTime字段导出格式化。
             str = DateUtils.parseDateToStr(dateFormat, DateUtils.toDate((LocalDateTime) val));
         }
         else if (val instanceof LocalDate)
         {
+            // 兼容代码生成器新增的LocalDate字段导出格式化。
             str = DateUtils.parseDateToStr(dateFormat, DateUtils.toDate((LocalDate) val));
         }
         else
@@ -2053,6 +2119,7 @@ public class ExcelUtil<T>
         StringBuffer getMethodName = new StringBuffer("get");
         getMethodName.append(name.substring(0, 1).toUpperCase());
         getMethodName.append(name.substring(1));
+        // 子列表通过JavaBean getter读取，保持与普通字段反射读取方式兼容。
         Method method = null;
         try
         {
@@ -2063,5 +2130,55 @@ public class ExcelUtil<T>
             log.error("获取对象异常{}", e.getMessage());
         }
         return method;
+    }
+
+    /**
+     * 对excel表单默认第一个索引名转换成list（EasyExcel）
+     * <p>
+     * 该方法用于兼容若依原有ExcelUtil调用方式，调用方只需要创建ExcelUtil<T>并传入上传文件输入流。
+     *
+     * @param is 输入流
+     * @return 转换后集合
+     * @throws Exception EasyExcel读取失败时向上抛出，交由业务层统一处理
+     */
+    public List<T> importEasyExcel(InputStream is) throws Exception
+    {
+        // 复用当前ExcelUtil持有的实体类型，避免调用方重复传入导入模型class。
+        // 不指定sheet名称时默认读取第一个sheet，保持与原ExcelUtil默认导入行为一致。
+        return EasyExcel.read(is).head(clazz).sheet().doReadSync();
+    }
+
+    /**
+     * 对list数据源将其里面的数据导入到excel表单（EasyExcel）
+     * <p>
+     * 该方法负责生成xlsx内容、设置下载响应头并写回浏览器。
+     *
+     * @param response HTTP下载响应
+     * @param list 导出数据集合
+     * @param sheetName 工作表的名称
+     */
+    public void exportEasyExcel(HttpServletResponse response, List<T> list, String sheetName)
+    {
+        try
+        {
+            // 使用内存流暂存xlsx内容，只有生成成功后才向HttpServletResponse写数据。
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            // 先写入内存，EasyExcel生成成功后再设置响应头，避免异常时把JSON错误响应伪装成xlsx文件。
+            EasyExcel.write(outputStream, clazz).sheet(sheetName).doWrite(list);
+            // xlsx标准Content-Type，前端download方法会据此按二进制文件处理响应。
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            // 统一响应字符集，保证中文文件名和响应头在浏览器侧可正确识别。
+            response.setCharacterEncoding("utf-8");
+            // EasyExcel直接写响应流时也需要设置下载响应头，避免前端拿到无文件名或异常空文件。
+            FileUtils.setAttachmentResponseHeader(response, sheetName + ".xlsx");
+            // 最后再写出到Servlet输出流，避免中途异常导致浏览器下载半截文件。
+            outputStream.writeTo(response.getOutputStream());
+        }
+        catch (Exception e)
+        {
+            // 保留原始异常栈，便于从日志中定位EasyExcel转换器、模板字段或依赖版本问题。
+            log.error("导出EasyExcel异常{}", e.getMessage());
+            throw new UtilException("导出Excel失败，请联系网站管理员！", e);
+        }
     }
 }

@@ -19,6 +19,10 @@
         <java.version>17</java.version>
         <spring-boot.version>3.5.16</spring-boot.version>
         <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
+        <!-- MyBatis-Plus starter和jsqlparser版本必须保持一致，放在父pom统一管理。 -->
+        <mybatis-plus.version>3.5.10</mybatis-plus.version>
+        <!-- ruoyi-common中直接声明MyBatis核心包，统一抽取版本便于后续升级排查。 -->
+        <mybatis.version>3.5.16</mybatis.version>
         <druid.version>1.2.28</druid.version>
         <yauaa.version>8.2.0</yauaa.version>
         <kaptcha.version>2.3.3</kaptcha.version>
@@ -27,6 +31,8 @@
         <oshi.version>7.4.4</oshi.version>
         <commons.io.version>2.22.0</commons.io.version>
         <poi.version>5.5.1</poi.version>
+        <!-- EasyExcel 2.x依赖的cglib在Java 17下会初始化失败，导出会生成空白文件。 -->
+        <easyexcel.version>4.0.3</easyexcel.version>
         <velocity.version>2.3</velocity.version>
         <jwt.version>0.9.1</jwt.version>
         <jaxb-api.version>2.3.1</jaxb-api.version>
