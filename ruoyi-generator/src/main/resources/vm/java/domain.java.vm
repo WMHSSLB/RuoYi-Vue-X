@@ -31,6 +31,10 @@ import lombok.Data;
 #end
 @Data
 @Builder
+#if($hasLogicDelete || $hasVersion)
+## 表含del_flag或version字段时生成TableName，保证MP方法能准确定位真实表名；del_flag逻辑删除规则由application.yml全局配置。
+@TableName("${tableName}")
+#end
 public class ${ClassName} extends ${Entity} {
 
 ## 定义类的序列化版本ID
@@ -46,6 +50,9 @@ public class ${ClassName} extends ${Entity} {
     @DateTimeFormat(pattern = "yyyy-MM-dd")
 #elseif($column.javaType == 'LocalDateTime')
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#end
+#if($hasVersion && $versionColumn.javaField == $column.javaField)
+    @Version
 #end
 ## 如果字段需要在列表中展示，使用Excel注解标记
 #if($column.list)

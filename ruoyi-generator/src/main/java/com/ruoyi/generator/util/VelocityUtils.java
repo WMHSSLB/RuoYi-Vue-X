@@ -35,6 +35,12 @@ public class VelocityUtils
     /** Vue3 Element Plus TypeScript 模版 */
     private static final String ELEMENT_PLUS_TYPESSRIPT = "element-plus-typescript";
 
+    /** 逻辑删除字段名 */
+    private static final String LOGIC_DELETE_COLUMN_NAME = "del_flag";
+
+    /** 乐观锁版本字段名 */
+    private static final String VERSION_COLUMN_NAME = "version";
+
     /**
      * 设置模板变量信息
      *
@@ -67,6 +73,7 @@ public class VelocityUtils
         velocityContext.put("permissionPrefix", getPermissionPrefix(moduleName, businessName));
         velocityContext.put("columns", genTable.getColumns());
         velocityContext.put("table", genTable);
+        setMybatisPlusVelocityContext(velocityContext, genTable, "");
         velocityContext.put("dicts", getDicts(genTable));
         setExtensionsContext(velocityContext, genTable.getOptions());
         setMenuVelocityContext(velocityContext, genTable);
@@ -134,6 +141,27 @@ public class VelocityUtils
         context.put("subClassName", subClassName);
         context.put("subclassName", StringUtils.uncapitalize(subClassName));
         context.put("subImportList", getImportList(genTable.getSubTable()));
+        setMybatisPlusVelocityContext(context, genTable.getSubTable(), "sub");
+    }
+
+    /**
+     * 设置MyBatis-Plus逻辑删除和乐观锁模板变量，按表字段存在性条件生成。
+     */
+    public static void setMybatisPlusVelocityContext(VelocityContext context, GenTable genTable, String prefix)
+    {
+        GenTableColumn logicDeleteColumn = getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME);
+        GenTableColumn versionColumn = getColumnByColumnName(genTable, VERSION_COLUMN_NAME);
+        String keyPrefix = StringUtils.isEmpty(prefix) ? "" : prefix;
+        String logicDeleteColumnKey = StringUtils.isEmpty(keyPrefix) ? "logicDeleteColumn" : keyPrefix + "LogicDeleteColumn";
+        String versionColumnKey = StringUtils.isEmpty(keyPrefix) ? "versionColumn" : keyPrefix + "VersionColumn";
+        String hasLogicDeleteKey = StringUtils.isEmpty(keyPrefix) ? "hasLogicDelete" : keyPrefix + "hasLogicDelete";
+        String hasVersionKey = StringUtils.isEmpty(keyPrefix) ? "hasVersion" : keyPrefix + "hasVersion";
+        // logicDeleteColumn保存del_flag字段元数据，hasLogicDelete表示当前表是否具备逻辑删除能力。
+        context.put(logicDeleteColumnKey, logicDeleteColumn);
+        // versionColumn保存version字段元数据，hasVersion表示当前表是否具备乐观锁能力。
+        context.put(versionColumnKey, versionColumn);
+        context.put(hasLogicDeleteKey, StringUtils.isNotNull(logicDeleteColumn));
+        context.put(hasVersionKey, StringUtils.isNotNull(versionColumn));
     }
 
     /**
@@ -329,7 +357,42 @@ public class VelocityUtils
                 importList.add("java.math.BigDecimal");
             }
         }
+        if (StringUtils.isNotNull(getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME)))
+        {
+            // 存在del_flag时只生成TableName，逻辑删除字段和值交给mybatis-plus全局配置。
+            importList.add("com.baomidou.mybatisplus.annotation.TableName");
+        }
+        if (StringUtils.isNotNull(getColumnByColumnName(genTable, VERSION_COLUMN_NAME)))
+        {
+            // 存在version时生成MP乐观锁注解，配合已注册的OptimisticLockerInnerInterceptor使用。
+            importList.add("com.baomidou.mybatisplus.annotation.Version");
+            importList.add("com.baomidou.mybatisplus.annotation.TableName");
+        }
         return importList;
+    }
+
+    /**
+     * 根据数据库字段名获取列信息。
+     */
+    public static GenTableColumn getColumnByColumnName(GenTable genTable, String columnName)
+    {
+        if (StringUtils.isNull(genTable) || StringUtils.isEmpty(columnName))
+        {
+            return null;
+        }
+        List<GenTableColumn> columns = genTable.getColumns();
+        if (StringUtils.isEmpty(columns))
+        {
+            return null;
+        }
+        for (GenTableColumn column : columns)
+        {
+            if (StringUtils.equalsIgnoreCase(column.getColumnName(), columnName))
+            {
+                return column;
+            }
+        }
+        return null;
     }
 
     /**

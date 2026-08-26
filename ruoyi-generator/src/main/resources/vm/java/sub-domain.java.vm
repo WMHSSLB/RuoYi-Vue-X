@@ -14,6 +14,10 @@ import com.ruoyi.common.core.domain.BaseEntity;
  * @author ${author}
  * @date ${datetime}
  */
+#if($subhasLogicDelete || $subhasVersion)
+## 子表含del_flag或version字段时生成TableName，兼容MP方式维护子表；del_flag逻辑删除规则由application.yml全局配置。
+@TableName("${subTableName}")
+#end
 public class ${subClassName} extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
@@ -26,6 +30,9 @@ public class ${subClassName} extends BaseEntity
     @DateTimeFormat(pattern = "yyyy-MM-dd")
 #elseif($column.javaType == 'LocalDateTime')
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#end
+#if($subhasVersion && $subVersionColumn.javaField == $column.javaField)
+    @Version
 #end
 #if($column.list)
 #set($parentheseIndex=$column.columnComment.indexOf("（"))

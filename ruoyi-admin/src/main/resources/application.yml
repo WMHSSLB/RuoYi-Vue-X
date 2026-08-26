@@ -116,6 +116,12 @@ mybatis-plus:
   mapperLocations: classpath*:mapper/**/*Mapper.xml
   # 加载全局的配置文件
   configLocation: classpath:mybatis/mybatis-config.xml
+  global-config:
+    db-config:
+      # 逻辑删除字段统一约定为del_flag / delFlag，MP方法按该配置自动追加未删除条件。
+      logic-delete-field: delFlag
+      logic-not-delete-value: 0
+      logic-delete-value: 2
 
 # PageHelper分页插件
 pagehelper:

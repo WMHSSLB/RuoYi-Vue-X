@@ -357,7 +357,7 @@
                 v-model="form.${field}"
                 type="datetime"
                 value-format="yyyy-MM-dd HH:mm:ss"
-                placeholder="璇烽€夋嫨${comment}">
+                placeholder="请选择${comment}">
               </el-date-picker>
             </el-form-item>
           </el-col>

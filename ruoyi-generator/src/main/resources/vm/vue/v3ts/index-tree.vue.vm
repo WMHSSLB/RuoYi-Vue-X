@@ -54,7 +54,7 @@
           v-model="queryParams.${column.javaField}"
           type="datetime"
           value-format="YYYY-MM-DD HH:mm:ss"
-          placeholder="閫夋嫨${comment}">
+          placeholder="选择${comment}">
         </el-date-picker>
       </el-form-item>
 #elseif(($column.javaType == "LocalDate" || $column.htmlType == "date") && $column.queryType == "BETWEEN")
@@ -327,7 +327,7 @@
                 v-model="form.${field}"
                 type="datetime"
                 value-format="YYYY-MM-DD HH:mm:ss"
-                placeholder="閫夋嫨${comment}">
+                placeholder="选择${comment}">
               </el-date-picker>
             </el-form-item>
           </el-col>

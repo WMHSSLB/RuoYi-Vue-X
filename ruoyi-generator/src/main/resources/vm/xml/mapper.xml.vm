@@ -29,6 +29,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="select${ClassName}List" parameterType="${ClassName}" resultMap="${ClassName}Result">
         <include refid="select${ClassName}Vo"/>
         <where>  
+## hasLogicDelete表示表存在del_flag字段，XML方式需要手动过滤未删除数据。
+#if($hasLogicDelete)
+            and ${logicDeleteColumn.columnName} = '0'
+#end
 #foreach($column in $columns)
 #set($queryType=$column.queryType)
 #set($javaField=$column.javaField)
@@ -62,10 +66,16 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 #if($table.crud || $table.tree)
         <include refid="select${ClassName}Vo"/>
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
+#if($hasLogicDelete)
+          and ${logicDeleteColumn.columnName} = '0'
+#end
 #elseif($table.sub)
         select#foreach($column in $columns) $column.columnName#if($foreach.count != $columns.size()),#end#end
         from ${tableName}
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
+#if($hasLogicDelete)
+          and ${logicDeleteColumn.columnName} = '0'
+#end
 #end
     </select>
 #if($table.sub)
@@ -74,6 +84,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select#foreach ($column in $subTable.columns) $column.columnName#if($foreach.count != $subTable.columns.size()),#end#end
         from ${subTableName}
         where ${subTableFkName} = #{${subTableFkName}}
+#if($subhasLogicDelete)
+          and ${subLogicDeleteColumn.columnName} = '0'
+#end
     </select>
 #end
 
@@ -81,14 +94,22 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         insert into ${tableName}
         <trim prefix="(" suffix=")" suffixOverrides=",">
 #foreach($column in $columns)
-#if($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
+#if($hasLogicDelete && $column.columnName == $logicDeleteColumn.columnName)
+            $column.columnName,
+#elseif($hasVersion && $column.columnName == $versionColumn.columnName)
+            $column.columnName,
+#elseif($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
             <if test="$column.javaField != null#if($column.javaType == 'String' && $column.required) and $column.javaField != ''#end">$column.columnName,</if>
 #end
 #end
          </trim>
         <trim prefix="values (" suffix=")" suffixOverrides=",">
 #foreach($column in $columns)
-#if($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
+#if($hasLogicDelete && $column.columnName == $logicDeleteColumn.columnName)
+            '0',
+#elseif($hasVersion && $column.columnName == $versionColumn.columnName)
+            0,
+#elseif($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
             <if test="$column.javaField != null#if($column.javaType == 'String' && $column.required) and $column.javaField != ''#end">#{$column.javaField},</if>
 #end
 #end
@@ -99,41 +120,79 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update ${tableName}
         <trim prefix="SET" suffixOverrides=",">
 #foreach($column in $columns)
-#if($column.columnName != $pkColumn.columnName)
+#if($column.columnName != $pkColumn.columnName && (!$hasLogicDelete || $column.columnName != $logicDeleteColumn.columnName) && (!$hasVersion || $column.columnName != $versionColumn.columnName))
             <if test="$column.javaField != null#if($column.javaType == 'String' && $column.required) and $column.javaField != ''#end">$column.columnName = #{$column.javaField},</if>
 #end
 #end
+#if($hasVersion)
+            <if test="${versionColumn.javaField} != null">${versionColumn.columnName} = ${versionColumn.columnName} + 1,</if>
+#end
         </trim>
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
+#if($hasVersion)
+        <if test="${versionColumn.javaField} != null"> and ${versionColumn.columnName} = #{${versionColumn.javaField}}</if>
+#end
     </update>
 
+#if($hasLogicDelete)
+## 传统XML删除不走MP逻辑删除配置，存在del_flag时改为更新删除标识。
+    <update id="delete${ClassName}By${pkColumn.capJavaField}" parameterType="${pkColumn.javaType}">
+        update ${tableName} set ${logicDeleteColumn.columnName} = '2' where ${pkColumn.columnName} = #{${pkColumn.javaField}} and ${logicDeleteColumn.columnName} = '0'
+    </update>
+#else
     <delete id="delete${ClassName}By${pkColumn.capJavaField}" parameterType="${pkColumn.javaType}">
         delete from ${tableName} where ${pkColumn.columnName} = #{${pkColumn.javaField}}
     </delete>
+#end
 
+#if($hasLogicDelete)
+## 批量删除同样按del_flag执行逻辑删除，避免物理删除业务数据。
+    <update id="delete${ClassName}By${pkColumn.capJavaField}s" parameterType="String">
+        update ${tableName} set ${logicDeleteColumn.columnName} = '2' where ${logicDeleteColumn.columnName} = '0' and ${pkColumn.columnName} in
+        <foreach item="${pkColumn.javaField}" collection="array" open="(" separator="," close=")">
+            #{${pkColumn.javaField}}
+        </foreach>
+    </update>
+#else
     <delete id="delete${ClassName}By${pkColumn.capJavaField}s" parameterType="String">
         delete from ${tableName} where ${pkColumn.columnName} in 
         <foreach item="${pkColumn.javaField}" collection="array" open="(" separator="," close=")">
             #{${pkColumn.javaField}}
         </foreach>
     </delete>
+#end
 #if($table.sub)
     
+#if($subhasLogicDelete)
+    <update id="delete${subClassName}By${subTableFkClassName}s" parameterType="String">
+        update ${subTableName} set ${subLogicDeleteColumn.columnName} = '2' where ${subLogicDeleteColumn.columnName} = '0' and ${subTableFkName} in
+        <foreach item="${subTableFkclassName}" collection="array" open="(" separator="," close=")">
+            #{${subTableFkclassName}}
+        </foreach>
+    </update>
+#else
     <delete id="delete${subClassName}By${subTableFkClassName}s" parameterType="String">
         delete from ${subTableName} where ${subTableFkName} in 
         <foreach item="${subTableFkclassName}" collection="array" open="(" separator="," close=")">
             #{${subTableFkclassName}}
         </foreach>
     </delete>
+#end
 
+#if($subhasLogicDelete)
+    <update id="delete${subClassName}By${subTableFkClassName}" parameterType="${pkColumn.javaType}">
+        update ${subTableName} set ${subLogicDeleteColumn.columnName} = '2' where ${subLogicDeleteColumn.columnName} = '0' and ${subTableFkName} = #{${subTableFkclassName}}
+    </update>
+#else
     <delete id="delete${subClassName}By${subTableFkClassName}" parameterType="${pkColumn.javaType}">
         delete from ${subTableName} where ${subTableFkName} = #{${subTableFkclassName}}
     </delete>
+#end
 
     <insert id="batch${subClassName}">
         insert into ${subTableName}(#foreach($column in $subTable.columns) $column.columnName#if($foreach.count != $subTable.columns.size()),#end#end) values
         <foreach item="item" index="index" collection="list" separator=",">
-            (#foreach($column in $subTable.columns) #{item.$column.javaField}#if($foreach.count != $subTable.columns.size()),#end#end)
+            (#foreach($column in $subTable.columns)#if($subhasLogicDelete && $column.columnName == $subLogicDeleteColumn.columnName)'0'#elseif($subhasVersion && $column.columnName == $subVersionColumn.columnName)0#else#{item.$column.javaField}#end#if($foreach.count != $subTable.columns.size()),#end#end)
         </foreach>
     </insert>
 #end
