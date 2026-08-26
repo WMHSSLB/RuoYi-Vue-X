@@ -37,7 +37,8 @@
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
-#elseif($column.htmlType == "datetime" && $column.queryType != "BETWEEN")
+## LocalDate使用date控件，查询参数保持YYYY-MM-DD字符串。
+#elseif(($column.javaType == "LocalDate" || $column.htmlType == "date") && $column.queryType != "BETWEEN")
       <el-form-item label="${comment}" prop="${column.javaField}">
         <el-date-picker clearable
           v-model="queryParams.${column.javaField}"
@@ -46,12 +47,33 @@
           placeholder="选择${comment}">
         </el-date-picker>
       </el-form-item>
-#elseif($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+## LocalDateTime使用datetime控件，查询参数保持YYYY-MM-DD HH:mm:ss字符串。
+#elseif(($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate")) && $column.queryType != "BETWEEN")
+      <el-form-item label="${comment}" prop="${column.javaField}">
+        <el-date-picker clearable
+          v-model="queryParams.${column.javaField}"
+          type="datetime"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          placeholder="閫夋嫨${comment}">
+        </el-date-picker>
+      </el-form-item>
+#elseif(($column.javaType == "LocalDate" || $column.htmlType == "date") && $column.queryType == "BETWEEN")
       <el-form-item label="${comment}" style="width: 308px">
         <el-date-picker
           v-model="daterange${AttrName}"
           value-format="YYYY-MM-DD"
           type="daterange"
+          range-separator="-"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+        ></el-date-picker>
+      </el-form-item>
+#elseif(($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate")) && $column.queryType == "BETWEEN")
+      <el-form-item label="${comment}" style="width: 308px">
+        <el-date-picker
+          v-model="daterange${AttrName}"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          type="datetimerange"
           range-separator="-"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
@@ -104,10 +126,17 @@
 #set($comment=$column.columnComment)
 #end
 #if($column.pk)
-#elseif($column.list && $column.htmlType == "datetime")
+## LocalDate列表展示到日期，LocalDateTime列表展示到秒。
+#elseif($column.list && ($column.javaType == "LocalDate" || $column.htmlType == "date"))
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
         <template #default="scope">
           <span>{{ parseTime(scope.row.${javaField}, '{y}-{m}-{d}') }}</span>
+        </template>
+      </el-table-column>
+#elseif($column.list && ($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate")))
+      <el-table-column label="${comment}" align="center" prop="${javaField}" width="180">
+        <template #default="scope">
+          <span>{{ parseTime(scope.row.${javaField}, '{y}-{m}-{d} {h}:{i}:{s}') }}</span>
         </template>
       </el-table-column>
 #elseif($column.list && $column.htmlType == "imageUpload")
@@ -279,7 +308,8 @@
               </el-radio-group>
             </el-form-item>
           </el-col>
-#elseif($column.htmlType == "datetime")
+## LocalDate使用date控件，LocalDateTime使用datetime控件，提交格式与后端JsonFormat保持一致。
+#elseif($column.javaType == "LocalDate" || $column.htmlType == "date")
           <el-col :span="${colSpan}">
             <el-form-item label="${comment}" prop="${field}">
               <el-date-picker clearable
@@ -287,6 +317,17 @@
                 type="date"
                 value-format="YYYY-MM-DD"
                 placeholder="选择${comment}">
+              </el-date-picker>
+            </el-form-item>
+          </el-col>
+#elseif($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate"))
+          <el-col :span="${colSpan}">
+            <el-form-item label="${comment}" prop="${field}">
+              <el-date-picker clearable
+                v-model="form.${field}"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                placeholder="閫夋嫨${comment}">
               </el-date-picker>
             </el-form-item>
           </el-col>
@@ -335,7 +376,7 @@ const title = ref<string>("")
 const isExpandAll = ref<boolean>(true)
 const refreshTable = ref<boolean>(true)
 #foreach ($column in $columns)
-#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#if(($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime" || $column.htmlType == "date" || $column.htmlType == "datetime") && $column.queryType == "BETWEEN")
 #set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
 const daterange${AttrName} = ref([])
 #end
@@ -373,13 +414,13 @@ const { queryParams, form, rules } = toRefs(data)
 function getList() {
   loading.value = true
 #foreach ($column in $columns)
-#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#if(($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime" || $column.htmlType == "date" || $column.htmlType == "datetime") && $column.queryType == "BETWEEN")
   queryParams.value.params = {}
 #break
 #end
 #end
 #foreach ($column in $columns)
-#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#if(($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime" || $column.htmlType == "date" || $column.htmlType == "datetime") && $column.queryType == "BETWEEN")
 #set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
   if (null != daterange${AttrName}.value && '' != daterange${AttrName}.value) {
     queryParams.value.params["begin${AttrName}"] = daterange${AttrName}.value[0]
@@ -431,7 +472,7 @@ function handleQuery() {
 /** 重置按钮操作 */
 function resetQuery() {
 #foreach ($column in $columns)
-#if($column.htmlType == "datetime" && $column.queryType == "BETWEEN")
+#if(($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime" || $column.htmlType == "date" || $column.htmlType == "datetime") && $column.queryType == "BETWEEN")
 #set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
   daterange${AttrName}.value = []
 #end

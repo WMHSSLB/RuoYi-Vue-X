@@ -310,6 +310,20 @@ public class VelocityUtils
                 importList.add("java.util.Date");
                 importList.add("com.fasterxml.jackson.annotation.JsonFormat");
             }
+            else if (!column.isSuperColumn() && GenConstants.TYPE_LOCAL_DATE.equals(column.getJavaType()))
+            {
+                // LocalDate字段需要DateTimeFormat处理GET查询参数，JsonFormat处理JSON响应。
+                importList.add("java.time.LocalDate");
+                importList.add("com.fasterxml.jackson.annotation.JsonFormat");
+                importList.add("org.springframework.format.annotation.DateTimeFormat");
+            }
+            else if (!column.isSuperColumn() && GenConstants.TYPE_LOCAL_DATE_TIME.equals(column.getJavaType()))
+            {
+                // LocalDateTime字段需要DateTimeFormat处理GET查询参数，JsonFormat处理JSON响应。
+                importList.add("java.time.LocalDateTime");
+                importList.add("com.fasterxml.jackson.annotation.JsonFormat");
+                importList.add("org.springframework.format.annotation.DateTimeFormat");
+            }
             else if (!column.isSuperColumn() && GenConstants.TYPE_BIGDECIMAL.equals(column.getJavaType()))
             {
                 importList.add("java.math.BigDecimal");

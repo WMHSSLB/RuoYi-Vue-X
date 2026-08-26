@@ -34,7 +34,8 @@ public class GenUtils
      */
     public static void initColumnField(GenTableColumn column, GenTable table)
     {
-        String dataType = getDbType(column.getColumnType());
+        // 统一数据库字段类型大小写，避免DATE/DATETIME/TIMESTAMP无法匹配时间类型。
+        String dataType = getDbType(column.getColumnType()).toLowerCase();
         String columnName = column.getColumnName();
         column.setTableId(table.getTableId());
         column.setCreateBy(table.getCreateBy());
@@ -53,8 +54,22 @@ public class GenUtils
         }
         else if (arraysContains(GenConstants.COLUMNTYPE_TIME, dataType))
         {
-            column.setJavaType(GenConstants.TYPE_DATE);
-            column.setHtmlType(GenConstants.HTML_DATETIME);
+            // BaseEntity/TreeEntity继承字段沿用若依默认Date类型，避免createTime/updateTime被改成LocalDateTime。
+            if (column.isSuperColumn())
+            {
+                column.setJavaType(GenConstants.TYPE_DATE);
+                column.setHtmlType(GenConstants.HTML_DATETIME);
+            }
+            // date只包含年月日，生成LocalDate并使用日期控件。
+            else if (GenConstants.TYPE_DATE.equalsIgnoreCase(dataType)) {
+                column.setJavaType(GenConstants.TYPE_LOCAL_DATE);
+                column.setHtmlType(GenConstants.HTML_DATE);       // 仅日期
+            } else if (GenConstants.TYPE_DATE_TIME.equalsIgnoreCase(dataType)
+                    || GenConstants.TYPE_TIMESTAMP.equalsIgnoreCase(dataType)) {
+                // datetime/timestamp包含时分秒，生成LocalDateTime并使用日期时间控件。
+                column.setJavaType(GenConstants.TYPE_LOCAL_DATE_TIME);
+                column.setHtmlType(GenConstants.HTML_DATETIME);   // 日期+时间
+            }
         }
         else if (arraysContains(GenConstants.COLUMNTYPE_NUMBER, dataType))
         {

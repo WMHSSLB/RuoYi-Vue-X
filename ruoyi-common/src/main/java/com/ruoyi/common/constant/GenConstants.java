@@ -80,6 +80,7 @@ public class GenConstants
     public static final String HTML_CHECKBOX = "checkbox";
 
     /** 日期控件 */
+    public static final String HTML_DATE = "date";
     public static final String HTML_DATETIME = "datetime";
 
     /** 图片上传控件 */
@@ -108,6 +109,12 @@ public class GenConstants
 
     /** 时间类型 */
     public static final String TYPE_DATE = "Date";
+    public static final String TYPE_DATE_TIME = "DateTime";
+    /** Java 8日期类型：数据库date生成LocalDate */
+    public static final String TYPE_LOCAL_DATE = "LocalDate";
+    /** Java 8日期时间类型：数据库datetime/timestamp生成LocalDateTime */
+    public static final String TYPE_LOCAL_DATE_TIME = "LocalDateTime";
+    public static final String TYPE_TIMESTAMP = "Timestamp";
 
     /** 模糊查询 */
     public static final String QUERY_LIKE = "LIKE";

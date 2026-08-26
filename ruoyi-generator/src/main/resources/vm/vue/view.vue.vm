@@ -26,8 +26,11 @@
 #else
               <dict-tag :options="dict.type.${dictType}" :value="info.${javaField}" />
 #end
-#elseif($column.htmlType == "datetime")
+## LocalDate详情展示日期，LocalDateTime详情展示到秒。
+#elseif($column.javaType == "LocalDate" || $column.htmlType == "date")
               {{ parseTime(info.${javaField}, '{y}-{m}-{d}') }}
+#elseif($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate"))
+              {{ parseTime(info.${javaField}, '{y}-{m}-{d} {h}:{i}:{s}') }}
 #else
               {{ info.${javaField} }}
 #end

@@ -34,13 +34,19 @@ import lombok.Data;
 public class ${ClassName} extends ${Entity} {
 
 ## 定义类的序列化版本ID
-private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
 
 ## 根据表的列定义实体类的属性
 #foreach ($column in $columns)
 ## 如果不是父类的属性，则生成属性
 #if(!$table.isSuperColumn($column.javaField))
     /** $column.columnComment */
+## DateTimeFormat用于GET查询参数绑定，JsonFormat只处理JSON正文和响应格式化。
+#if($column.javaType == 'LocalDate')
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+#elseif($column.javaType == 'LocalDateTime')
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#end
 ## 如果字段需要在列表中展示，使用Excel注解标记
 #if($column.list)
 #set($parentheseIndex=$column.columnComment.indexOf("（"))
@@ -51,6 +57,13 @@ private static final long serialVersionUID = 1L;
 #end
 #if($parentheseIndex != -1)
     @Excel(name = "${comment}", readConverterExp = "$column.readConverterExp()")
+## 将原来的Date判断替换为LocalDate或者LocalDateTime，用于格式化日期
+#elseif($column.javaType == 'LocalDate')
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
+#elseif($column.javaType == 'LocalDateTime')
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
 #elseif($column.javaType == 'Date')
     @JsonFormat(pattern = "yyyy-MM-dd")
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
