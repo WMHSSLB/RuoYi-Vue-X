@@ -143,14 +143,17 @@ public class GenUtils
         {
             column.setHtmlType(GenConstants.HTML_EDITOR);
         }
-        // del_flag/version属于技术字段，按字段存在性生成逻辑删除和乐观锁，不暴露给前端手动维护。
-        if (StringUtils.equalsAnyIgnoreCase(columnName, "del_flag", "version"))
+        // del_flag属于逻辑删除技术字段，不暴露给前端手动维护。
+        if (StringUtils.equalsIgnoreCase(columnName, "del_flag"))
         {
-            if (StringUtils.equalsIgnoreCase(columnName, "version"))
-            {
-                // version约定使用Integer，匹配数据库int类型并配合MP乐观锁插件递增。
-                column.setJavaType(GenConstants.TYPE_INTEGER);
-            }
+            column.setIsInsert("0");
+            column.setIsEdit("0");
+            column.setIsList("0");
+            column.setIsQuery("0");
+        }
+        // 只有数值型version才按MP乐观锁字段处理；timestamp类型version保留LocalDateTime映射，避免TIMESTAMP映射到Integer。
+        if (StringUtils.equalsIgnoreCase(columnName, "version") && arraysContains(GenConstants.COLUMNTYPE_NUMBER, dataType))
+        {
             column.setIsInsert("0");
             column.setIsEdit("0");
             column.setIsList("0");

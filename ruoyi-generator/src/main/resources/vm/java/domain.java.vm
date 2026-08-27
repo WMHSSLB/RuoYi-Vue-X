@@ -5,8 +5,12 @@ package ${packageName}.domain;
 import ${import};
 #end
 
-## 导入项目自定义的Excel注解，用于生成Excel
+## 导入EasyExcel注解和若依原有Excel注解，生成实体同时兼容EasyExcel和POI两套导出方式。
+import com.alibaba.excel.annotation.ExcelIgnoreUnannotated;
+import com.alibaba.excel.annotation.ExcelProperty;
 import com.ruoyi.common.annotation.Excel;
+## 通用转换器会读取字段上的@Excel配置，避免每个字典或枚举字段都生成专用Converter类。
+import com.ruoyi.common.utils.poi.ExcelAnnotationConverter;
 #if($table.crud || $table.sub)
 ## 如果表具有CRUD操作或子表，继承BaseEntity
 import com.ruoyi.common.core.domain.BaseEntity;
@@ -14,9 +18,11 @@ import com.ruoyi.common.core.domain.BaseEntity;
 #elseif($table.tree)
 import com.ruoyi.common.core.domain.TreeEntity;
 #end
-## 注意lombok导包
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 /**
  * ${functionName}对象 ${tableName}
@@ -30,7 +36,15 @@ import lombok.Data;
 #set($Entity="TreeEntity")
 #end
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
+## 明确保持Lombok默认的不比较父类字段行为，避免继承BaseEntity时产生编译警告。
+@EqualsAndHashCode(callSuper = false)
+## @NoArgsConstructor保留MyBatis JavaBean映射需要的无参构造；@Builder仅作为业务代码便捷构造方式。
+## EasyExcel只导出带@ExcelProperty的字段，避免BaseEntity中的公共字段被默认导出。
+// EasyExcel仅处理显式标注@ExcelProperty的字段，避免继承字段被误导出。
+@ExcelIgnoreUnannotated
 #if($hasLogicDelete || $hasVersion)
 ## 表含del_flag或version字段时生成TableName，保证MP方法能准确定位真实表名；del_flag逻辑删除规则由application.yml全局配置。
 @TableName("${tableName}")
@@ -52,6 +66,7 @@ public class ${ClassName} extends ${Entity} {
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 #end
 #if($hasVersion && $versionColumn.javaField == $column.javaField)
+    // 数值型version字段由MyBatis-Plus乐观锁注解和XML条件共同维护。
     @Version
 #end
 ## 如果字段需要在列表中展示，使用Excel注解标记
@@ -63,19 +78,40 @@ public class ${ClassName} extends ${Entity} {
 #set($comment=$column.columnComment)
 #end
 #if($parentheseIndex != -1)
+## 注释中包含“（0正常 1停用）”这类枚举表达式时，EasyExcel走通用转换器复用@Excel(readConverterExp)。
+    // EasyExcel通过通用转换器复用@Excel(readConverterExp)的枚举翻译规则。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", readConverterExp = "$column.readConverterExp()")
 ## 将原来的Date判断替换为LocalDate或者LocalDateTime，用于格式化日期
 #elseif($column.javaType == 'LocalDate')
     @JsonFormat(pattern = "yyyy-MM-dd")
+## 日期字段使用通用转换器读取@Excel(dateFormat)，保证EasyExcel和POI导出格式一致。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的日期格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
 #elseif($column.javaType == 'LocalDateTime')
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+## 日期时间字段使用通用转换器读取@Excel(dateFormat)，避免LocalDateTime导出为ISO格式。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的日期时间格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
 #elseif($column.javaType == 'Date')
     @JsonFormat(pattern = "yyyy-MM-dd")
+## Date字段继续保留若依原有日期格式，同时让EasyExcel读取相同配置。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的Date格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
 #else
+#if("" != $column.dictType)
+## 字典字段将dictType写入@Excel，再由EasyExcel通用转换器读取并翻译字典标签。
+    // EasyExcel通过通用转换器复用@Excel(dictType)的字典翻译规则。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
+    @Excel(name = "${comment}", dictType = "$column.dictType")
+#else
+## 普通字段无需转换器，EasyExcel直接按字段值导出。
+    @ExcelProperty(value = "${comment}")
     @Excel(name = "${comment}")
+#end
 #end
 #end
     private $column.javaType $column.javaField;

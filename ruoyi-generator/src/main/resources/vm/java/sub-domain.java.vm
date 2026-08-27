@@ -3,10 +3,18 @@ package ${packageName}.domain;
 #foreach ($import in $subImportList)
 import ${import};
 #end
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+## 子表实体同样生成EasyExcel注解，保持主表和子表导出能力一致。
+import com.alibaba.excel.annotation.ExcelIgnoreUnannotated;
+import com.alibaba.excel.annotation.ExcelProperty;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.core.domain.BaseEntity;
+## 通用转换器会读取字段上的@Excel配置，复用POI模板已有的转换表达式和字典配置。
+import com.ruoyi.common.utils.poi.ExcelAnnotationConverter;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
 /**
  * ${subTable.functionName}对象 ${subTableName}
@@ -14,10 +22,20 @@ import com.ruoyi.common.core.domain.BaseEntity;
  * @author ${author}
  * @date ${datetime}
  */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+## 明确保持Lombok默认的不比较父类字段行为，避免继承BaseEntity时产生编译警告。
+@EqualsAndHashCode(callSuper = false)
 #if($subhasLogicDelete || $subhasVersion)
 ## 子表含del_flag或version字段时生成TableName，兼容MP方式维护子表；del_flag逻辑删除规则由application.yml全局配置。
 @TableName("${subTableName}")
 #end
+## @NoArgsConstructor保留MyBatis JavaBean映射需要的无参构造；@Builder仅作为业务代码便捷构造方式。
+## EasyExcel只导出带@ExcelProperty的字段，避免BaseEntity中的公共字段被默认导出。
+// EasyExcel仅处理显式标注@ExcelProperty的字段，避免继承字段被误导出。
+@ExcelIgnoreUnannotated
 public class ${subClassName} extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
@@ -42,55 +60,44 @@ public class ${subClassName} extends BaseEntity
 #set($comment=$column.columnComment)
 #end
 #if($parentheseIndex != -1)
+## 注释中包含“（0正常 1停用）”这类枚举表达式时，EasyExcel走通用转换器复用@Excel(readConverterExp)。
+    // EasyExcel通过通用转换器复用@Excel(readConverterExp)的枚举翻译规则。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", readConverterExp = "$column.readConverterExp()")
 ## LocalDate和LocalDateTime分别使用不同格式，保证生成的子表实体与前端控件格式一致。
 #elseif($column.javaType == 'LocalDate')
     @JsonFormat(pattern = "yyyy-MM-dd")
+## 日期字段使用通用转换器读取@Excel(dateFormat)，保证EasyExcel和POI导出格式一致。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的日期格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
 #elseif($column.javaType == 'LocalDateTime')
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+## 日期时间字段使用通用转换器读取@Excel(dateFormat)，避免LocalDateTime导出为ISO格式。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的日期时间格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd HH:mm:ss")
 #elseif($column.javaType == 'Date')
     @JsonFormat(pattern = "yyyy-MM-dd")
+## Date字段继续保留若依原有日期格式，同时让EasyExcel读取相同配置。
+    // EasyExcel通过通用转换器复用@Excel(dateFormat)的Date格式。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
     @Excel(name = "${comment}", width = 30, dateFormat = "yyyy-MM-dd")
 #else
+#if("" != $column.dictType)
+## 字典字段将dictType写入@Excel，再由EasyExcel通用转换器读取并翻译字典标签。
+    // EasyExcel通过通用转换器复用@Excel(dictType)的字典翻译规则。
+    @ExcelProperty(value = "${comment}", converter = ExcelAnnotationConverter.class)
+    @Excel(name = "${comment}", dictType = "$column.dictType")
+#else
+## 普通字段无需转换器，EasyExcel直接按字段值导出。
+    @ExcelProperty(value = "${comment}")
     @Excel(name = "${comment}")
+#end
 #end
 #end
     private $column.javaType $column.javaField;
 
 #end
 #end
-#foreach ($column in $subTable.columns)
-#if(!$table.isSuperColumn($column.javaField))
-#if($column.javaField.length() > 2 && $column.javaField.substring(1,2).matches("[A-Z]"))
-#set($AttrName=$column.javaField)
-#else
-#set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
-#end
-    public void set${AttrName}($column.javaType $column.javaField) 
-    {
-        this.$column.javaField = $column.javaField;
-    }
-
-    public $column.javaType get${AttrName}() 
-    {
-        return $column.javaField;
-    }
-#end
-#end
-
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
-#foreach ($column in $subTable.columns)
-#if($column.javaField.length() > 2 && $column.javaField.substring(1,2).matches("[A-Z]"))
-#set($AttrName=$column.javaField)
-#else
-#set($AttrName=$column.javaField.substring(0,1).toUpperCase() + ${column.javaField.substring(1)})
-#end
-            .append("${column.javaField}", get${AttrName}())
-#end
-            .toString();
-    }
 }

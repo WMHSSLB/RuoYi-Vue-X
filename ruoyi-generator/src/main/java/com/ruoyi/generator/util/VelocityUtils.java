@@ -151,6 +151,8 @@ public class VelocityUtils
     {
         GenTableColumn logicDeleteColumn = getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME);
         GenTableColumn versionColumn = getColumnByColumnName(genTable, VERSION_COLUMN_NAME);
+        // 只有数值型version字段才启用XML里的version + 1乐观锁逻辑，避免timestamp version被映射为Integer。
+        boolean hasVersion = StringUtils.isNotNull(versionColumn) && isNumberVersionColumn(versionColumn);
         String keyPrefix = StringUtils.isEmpty(prefix) ? "" : prefix;
         String logicDeleteColumnKey = StringUtils.isEmpty(keyPrefix) ? "logicDeleteColumn" : keyPrefix + "LogicDeleteColumn";
         String versionColumnKey = StringUtils.isEmpty(keyPrefix) ? "versionColumn" : keyPrefix + "VersionColumn";
@@ -161,7 +163,15 @@ public class VelocityUtils
         // versionColumn保存version字段元数据，hasVersion表示当前表是否具备乐观锁能力。
         context.put(versionColumnKey, versionColumn);
         context.put(hasLogicDeleteKey, StringUtils.isNotNull(logicDeleteColumn));
-        context.put(hasVersionKey, StringUtils.isNotNull(versionColumn));
+        context.put(hasVersionKey, hasVersion);
+    }
+
+    /**
+     * 判断version字段是否适合按数值型乐观锁生成。
+     */
+    private static boolean isNumberVersionColumn(GenTableColumn column)
+    {
+        return StringUtils.equalsAny(column.getJavaType(), GenConstants.TYPE_INTEGER, GenConstants.TYPE_LONG);
     }
 
     /**
@@ -357,14 +367,16 @@ public class VelocityUtils
                 importList.add("java.math.BigDecimal");
             }
         }
-        if (StringUtils.isNotNull(getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME)))
+        GenTableColumn logicDeleteColumn = getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME);
+        GenTableColumn versionColumn = getColumnByColumnName(genTable, VERSION_COLUMN_NAME);
+        if (StringUtils.isNotNull(logicDeleteColumn))
         {
             // 存在del_flag时只生成TableName，逻辑删除字段和值交给mybatis-plus全局配置。
             importList.add("com.baomidou.mybatisplus.annotation.TableName");
         }
-        if (StringUtils.isNotNull(getColumnByColumnName(genTable, VERSION_COLUMN_NAME)))
+        if (StringUtils.isNotNull(versionColumn) && isNumberVersionColumn(versionColumn))
         {
-            // 存在version时生成MP乐观锁注解，配合已注册的OptimisticLockerInnerInterceptor使用。
+            // 只有数值型version才生成MP乐观锁注解，避免timestamp等同名字段被当作版本号。
             importList.add("com.baomidou.mybatisplus.annotation.Version");
             importList.add("com.baomidou.mybatisplus.annotation.TableName");
         }

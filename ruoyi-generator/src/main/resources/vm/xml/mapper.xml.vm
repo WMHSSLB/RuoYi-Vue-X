@@ -31,6 +31,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>  
 ## hasLogicDelete表示表存在del_flag字段，XML方式需要手动过滤未删除数据。
 #if($hasLogicDelete)
+            <!-- del_flag存在时按逻辑删除规则只查询未删除数据。 -->
             and ${logicDeleteColumn.columnName} = '0'
 #end
 #foreach($column in $columns)
@@ -67,6 +68,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <include refid="select${ClassName}Vo"/>
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
 #if($hasLogicDelete)
+          <!-- del_flag存在时详情查询同样过滤已删除数据。 -->
           and ${logicDeleteColumn.columnName} = '0'
 #end
 #elseif($table.sub)
@@ -74,6 +76,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from ${tableName}
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
 #if($hasLogicDelete)
+          <!-- del_flag存在时详情查询同样过滤已删除数据。 -->
           and ${logicDeleteColumn.columnName} = '0'
 #end
 #end
@@ -95,8 +98,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="(" suffix=")" suffixOverrides=",">
 #foreach($column in $columns)
 #if($hasLogicDelete && $column.columnName == $logicDeleteColumn.columnName)
+            <!-- 新增时初始化逻辑删除标识。 -->
             $column.columnName,
 #elseif($hasVersion && $column.columnName == $versionColumn.columnName)
+            <!-- 新增时初始化数值型乐观锁版本号。 -->
             $column.columnName,
 #elseif($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
             <if test="$column.javaField != null#if($column.javaType == 'String' && $column.required) and $column.javaField != ''#end">$column.columnName,</if>
@@ -106,8 +111,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <trim prefix="values (" suffix=")" suffixOverrides=",">
 #foreach($column in $columns)
 #if($hasLogicDelete && $column.columnName == $logicDeleteColumn.columnName)
+            <!-- 新增时默认写入未删除状态。 -->
             '0',
 #elseif($hasVersion && $column.columnName == $versionColumn.columnName)
+            <!-- 新增时默认从0版本开始。 -->
             0,
 #elseif($column.columnName != $pkColumn.columnName || !$pkColumn.increment)
             <if test="$column.javaField != null#if($column.javaType == 'String' && $column.required) and $column.javaField != ''#end">#{$column.javaField},</if>
@@ -125,11 +132,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 #end
 #end
 #if($hasVersion)
+            <!-- 更新成功时版本号递增，配合where里的旧版本条件实现乐观锁。 -->
             <if test="${versionColumn.javaField} != null">${versionColumn.columnName} = ${versionColumn.columnName} + 1,</if>
 #end
         </trim>
         where ${pkColumn.columnName} = #{${pkColumn.javaField}}
 #if($hasVersion)
+        <!-- 提交旧版本号时才进行乐观锁校验。 -->
         <if test="${versionColumn.javaField} != null"> and ${versionColumn.columnName} = #{${versionColumn.javaField}}</if>
 #end
     </update>
