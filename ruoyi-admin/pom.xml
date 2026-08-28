@@ -24,7 +24,13 @@
             <optional>true</optional> <!-- 表示依赖不会传递 -->
         </dependency>
 
-        <!-- spring-doc -->
+        <!-- Knife4j文档UI入口放在启动模块，访问地址为 /doc.html。 -->
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- 直接声明springdoc 2.9.0覆盖Knife4j传递的2.3.0避免ControllerAdviceBean运行期错误 -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

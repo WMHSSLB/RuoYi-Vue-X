@@ -12,30 +12,33 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 
 /**
- * Swagger2的接口配置
- * 
+ * Knife4j/OpenAPI3接口文档配置
+ *
  * @author ruoyi
  */
 @Configuration
 public class SwaggerConfig
 {
-    /** 系统基础配置 */
+    /** 系统基础配置，用于组装接口文档标题、版本、联系人等信息 */
     @Autowired
     private RuoYiConfig ruoyiConfig;
     
     /**
-     * 自定义的 OpenAPI 对象
+     * 构建OpenAPI文档对象，Knife4j会读取该对象展示接口标题、认证方式和基础信息
      */
     @Bean
     public OpenAPI customOpenApi()
     {
         return new OpenAPI().components(new Components()
-            // 设置认证的请求头
+            // 设置Authorization请求头，方便在Knife4j调试接口时统一携带token
             .addSecuritySchemes("apikey", securityScheme()))
             .addSecurityItem(new SecurityRequirement().addList("apikey"))
             .info(getApiInfo());
     }
     
+    /**
+     * 定义接口文档里的全局认证请求头
+     */
     @Bean
     public SecurityScheme securityScheme()
     {
@@ -47,7 +50,7 @@ public class SwaggerConfig
     }
     
     /**
-     * 添加摘要信息
+     * 添加接口文档摘要信息
      */
     public Info getApiInfo()
     {

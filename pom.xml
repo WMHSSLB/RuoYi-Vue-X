@@ -36,6 +36,8 @@
         <velocity.version>2.3</velocity.version>
         <jwt.version>0.9.1</jwt.version>
         <jaxb-api.version>2.3.1</jaxb-api.version>
+        <knife4j.version>4.4.0</knife4j.version>
+        <!-- Knife4j 4.4.0默认传递的springdoc 2.3.0与当前Spring Boot不兼容 -->
         <springdoc.version>2.9.0</springdoc.version>
     </properties>
 
@@ -92,13 +94,19 @@
                 <version>${oshi.version}</version>
             </dependency>
 
-            <!-- spring-doc -->
+            <!-- Knife4j基于springdoc-openapi3提供接口文档UI，版本放在父pom统一管理，避免各模块版本不一致。 -->
+            <dependency>
+                <groupId>com.github.xiaoymin</groupId>
+                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+                <version>${knife4j.version}</version>
+            </dependency>
+
+            <!-- 只管理UI starter版本，由它带齐webmvc-api、common和swagger-core版本 -->
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
             </dependency>
-
             <!-- io常用工具类 -->
             <dependency>
                 <groupId>commons-io</groupId>

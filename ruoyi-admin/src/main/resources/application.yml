@@ -69,7 +69,7 @@ spring:
     # redis 配置
     redis:
       # 地址
-#      host: localhost
+      #      host: localhost
       host: 192.168.159.167
       # 端口，默认为6379
       port: 6379
@@ -136,12 +136,42 @@ springdoc:
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
+    # 使用相对地址兼容后端直连和前端/dev-api代理入口
+    config-url: ./v3/api-docs/swagger-config
     tags-sorter: alpha
+    urls:
+      - name: '若依接口'
+        # 分组地址保持相对避免前端iframe请求到localhost/v3/api-docs
+        url: ./v3/api-docs/default
+      - name: '系统管理'
+        url: ./v3/api-docs/system
   group-configs:
     - group: 'default'
-      display-name: '测试模块'
+      display-name: '若依接口'
       paths-to-match: '/**'
-      packages-to-scan: com.ruoyi.web.controller.tool
+      # 扫描后台Controller根包让Knife4j展示全部业务接口
+      packages-to-scan: com.ruoyi.web.controller
+    - group: 'system'
+      display-name: '系统管理'
+      paths-to-match: '/**'
+      # 扫描后台Controller根包让Knife4j展示全部业务接口
+      packages-to-scan: com.ruoyi.system.controller
+
+# Knife4j配置
+knife4j:
+  # 开启Knife4j增强页面
+  enable: true
+  # 生产环境可通过环境变量关闭文档增强接口
+  production: false
+  # 基础认证默认关闭
+  basic:
+    # 需要文档密码时再开启
+    enable: false
+    username: ruoyi
+    password: 123456
+  setting:
+    # 自定义左侧菜单中Schema的显示名称
+    swagger-model-name: 实体类列表
 
 # 防盗链配置
 referer:
