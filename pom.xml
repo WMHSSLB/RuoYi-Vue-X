@@ -39,6 +39,8 @@
         <knife4j.version>4.4.0</knife4j.version>
         <!-- Knife4j 4.4.0默认传递的springdoc 2.3.0与当前Spring Boot不兼容 -->
         <springdoc.version>2.9.0</springdoc.version>
+        <!-- 生成代码使用OpenAPI3注解，版本与springdoc 2.9.0依赖的swagger-core保持一致 -->
+        <swagger-annotations.version>2.2.52</swagger-annotations.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -107,6 +109,14 @@
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc.version}</version>
             </dependency>
+
+            <!-- 仅提供OpenAPI3注解给生成实体和Controller使用，不引入Knife4j页面能力 -->
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-annotations-jakarta</artifactId>
+                <version>${swagger-annotations.version}</version>
+            </dependency>
+
             <!-- io常用工具类 -->
             <dependency>
                 <groupId>commons-io</groupId>

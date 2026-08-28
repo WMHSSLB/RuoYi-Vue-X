@@ -9,6 +9,7 @@ import ${import};
 import com.alibaba.excel.annotation.ExcelIgnoreUnannotated;
 import com.alibaba.excel.annotation.ExcelProperty;
 import com.ruoyi.common.annotation.Excel;
+import io.swagger.v3.oas.annotations.media.Schema;
 ## 通用转换器会读取字段上的@Excel配置，避免每个字典或枚举字段都生成专用Converter类。
 import com.ruoyi.common.utils.poi.ExcelAnnotationConverter;
 #if($table.crud || $table.sub)
@@ -35,6 +36,8 @@ import lombok.NoArgsConstructor;
 #elseif($table.tree)
 #set($Entity="TreeEntity")
 #end
+## Knife4j/OpenAPI3根据@Schema展示实体模型名称
+@Schema(description = "${functionName}实体")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

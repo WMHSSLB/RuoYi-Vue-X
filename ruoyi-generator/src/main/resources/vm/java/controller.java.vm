@@ -19,6 +19,8 @@ import com.ruoyi.common.enums.BusinessType;
 import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
 import com.ruoyi.common.utils.poi.ExcelUtil;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 #if($table.crud || $table.sub)
 import com.ruoyi.common.core.page.TableDataInfo;
 #elseif($table.tree)
@@ -26,10 +28,12 @@ import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
  * ${functionName}Controller
- * 
+ *
  * @author ${author}
  * @date ${datetime}
  */
+// Knife4j/OpenAPI3根据@Tag将当前Controller归类到对应接口分组
+@Tag(name = "${functionName}")
 @RestController
 @RequestMapping("/${moduleName}/${businessName}")
 public class ${ClassName}Controller extends BaseController
@@ -41,6 +45,7 @@ public class ${ClassName}Controller extends BaseController
      * 查询${functionName}列表
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:list')")
+    @Operation(summary = "查询${functionName}列表")
     @GetMapping("/list")
 #if($table.crud || $table.sub)
     public TableDataInfo list(${ClassName} ${className})
@@ -62,6 +67,7 @@ public class ${ClassName}Controller extends BaseController
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:export')")
     @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
+    @Operation(summary = "导出${functionName}列表")
     @PostMapping("/export")
     public void export(HttpServletResponse response, ${ClassName} ${className})
     {
@@ -76,6 +82,7 @@ public class ${ClassName}Controller extends BaseController
      * 获取${functionName}详细信息
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:query')")
+    @Operation(summary = "获取${functionName}详细信息")
     @GetMapping(value = "/{${pkColumn.javaField}}")
     public AjaxResult getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
     {
@@ -87,6 +94,7 @@ public class ${ClassName}Controller extends BaseController
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:add')")
     @Log(title = "${functionName}", businessType = BusinessType.INSERT)
+    @Operation(summary = "新增${functionName}")
     @PostMapping
     public AjaxResult add(@RequestBody ${ClassName} ${className})
     {
@@ -98,6 +106,7 @@ public class ${ClassName}Controller extends BaseController
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:edit')")
     @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
+    @Operation(summary = "修改${functionName}")
     @PutMapping
     public AjaxResult edit(@RequestBody ${ClassName} ${className})
     {
@@ -109,6 +118,7 @@ public class ${ClassName}Controller extends BaseController
      */
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:remove')")
     @Log(title = "${functionName}", businessType = BusinessType.DELETE)
+    @Operation(summary = "删除${functionName}")
 	@DeleteMapping("/{${pkColumn.javaField}s}")
     public AjaxResult remove(@PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s)
     {

@@ -8,6 +8,7 @@ import com.alibaba.excel.annotation.ExcelIgnoreUnannotated;
 import com.alibaba.excel.annotation.ExcelProperty;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.core.domain.BaseEntity;
+import io.swagger.v3.oas.annotations.media.Schema;
 ## 通用转换器会读取字段上的@Excel配置，复用POI模板已有的转换表达式和字典配置。
 import com.ruoyi.common.utils.poi.ExcelAnnotationConverter;
 import lombok.AllArgsConstructor;
@@ -18,10 +19,12 @@ import lombok.NoArgsConstructor;
 
 /**
  * ${subTable.functionName}对象 ${subTableName}
- * 
+ *
  * @author ${author}
  * @date ${datetime}
  */
+## Knife4j/OpenAPI3根据@Schema展示子表实体模型名称
+@Schema(description = "${subTable.functionName}实体")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
