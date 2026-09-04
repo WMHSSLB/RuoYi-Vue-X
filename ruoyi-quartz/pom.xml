@@ -29,6 +29,12 @@
             <artifactId>ruoyi-common</artifactId>
         </dependency>
 
+        <!-- 系统模块，存储文件清理任务需要读取 sys_storage_file 记录 -->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-system</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>
