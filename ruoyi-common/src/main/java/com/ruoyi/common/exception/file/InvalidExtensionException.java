@@ -23,6 +23,14 @@ public class InvalidExtensionException extends FileUploadException
         this.filename = filename;
     }
 
+    public InvalidExtensionException(String message, String[] allowedExtension, String extension, String filename)
+    {
+        super(message);
+        this.allowedExtension = allowedExtension;
+        this.extension = extension;
+        this.filename = filename;
+    }
+
     public String[] getAllowedExtension()
     {
         return allowedExtension;
@@ -44,7 +52,19 @@ public class InvalidExtensionException extends FileUploadException
 
         public InvalidImageExtensionException(String[] allowedExtension, String extension, String filename)
         {
-            super(allowedExtension, extension, filename);
+            super("图片文件[" + filename + "]后缀[" + extension + "]不正确，请上传" + Arrays.toString(allowedExtension) + "格式图片",
+                    allowedExtension, extension, filename);
+        }
+    }
+
+    public static class InvalidImageContentException extends InvalidExtensionException
+    {
+        private static final long serialVersionUID = 1L;
+
+        public InvalidImageContentException(String[] allowedExtension, String extension, String filename)
+        {
+            super("文件[" + filename + "]内容不是有效图片，请上传真实的" + Arrays.toString(allowedExtension) + "格式图片",
+                    allowedExtension, extension, filename);
         }
     }
 
