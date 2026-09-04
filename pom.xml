@@ -41,6 +41,11 @@
         <springdoc.version>2.9.0</springdoc.version>
         <!-- 生成代码使用OpenAPI3注解，版本与springdoc 2.9.0依赖的swagger-core保持一致 -->
         <swagger-annotations.version>2.2.52</swagger-annotations.version>
+        <!-- X File Storage及当前启用的OSS平台SDK版本统一放在父pom管理。 -->
+        <x-file-storage.version>2.3.0</x-file-storage.version>
+        <aliyun-sdk-oss.version>3.16.1</aliyun-sdk-oss.version>
+        <minio.version>8.5.2</minio.version>
+        <qcloud-cos.version>5.6.137</qcloud-cos.version>
     </properties>
 
     <!-- 依赖声明 -->
@@ -144,6 +149,35 @@
                 <artifactId>fastjson2</artifactId>
                 <version>${fastjson.version}</version>
             </dependency>
+
+            <!-- X File Storage -->
+            <dependency>
+                <groupId>org.dromara.x-file-storage</groupId>
+                <artifactId>x-file-storage-spring</artifactId>
+                <version>${x-file-storage.version}</version>
+            </dependency>
+
+            <!-- Aliyun OSS -->
+            <dependency>
+                <groupId>com.aliyun.oss</groupId>
+                <artifactId>aliyun-sdk-oss</artifactId>
+                <version>${aliyun-sdk-oss.version}</version>
+            </dependency>
+
+            <!-- MinIO -->
+            <dependency>
+                <groupId>io.minio</groupId>
+                <artifactId>minio</artifactId>
+                <version>${minio.version}</version>
+            </dependency>
+
+            <!-- 腾讯云Qcloud COS -->
+            <dependency>
+                <groupId>com.qcloud</groupId>
+                <artifactId>cos_api</artifactId>
+                <version>${qcloud-cos.version}</version>
+            </dependency>
+
 
             <!-- Token生成与解析-->
             <dependency>
