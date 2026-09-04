@@ -23,6 +23,12 @@
             <artifactId>ruoyi-common</artifactId>
         </dependency>
 
+        <!-- X File Storage，数据库版 FileRecorder 需要使用 FileInfo 和 FileRecorder 接口 -->
+        <dependency>
+            <groupId>org.dromara.x-file-storage</groupId>
+            <artifactId>x-file-storage-spring</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

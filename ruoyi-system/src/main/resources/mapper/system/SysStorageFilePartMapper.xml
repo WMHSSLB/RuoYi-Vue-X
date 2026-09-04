@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysStorageFilePartMapper">
+
+    <resultMap type="SysStorageFilePart" id="SysStorageFilePartResult">
+        <id     property="partId"       column="part_id"       />
+        <result property="storageId"    column="storage_id"    />
+        <result property="platform"     column="platform"      />
+        <result property="uploadId"     column="upload_id"     />
+        <result property="partNumber"   column="part_number"   />
+        <result property="partSize"     column="part_size"     />
+        <result property="etag"         column="etag"          />
+        <result property="hashInfo"     column="hash_info"     />
+        <result property="createTime"   column="create_time"   />
+        <result property="lastModified" column="last_modified" />
+    </resultMap>
+
+    <insert id="saveStorageFilePart" parameterType="SysStorageFilePart">
+        insert into sys_storage_file_part (
+            storage_id, platform, upload_id, part_number, part_size, etag, hash_info, create_time, last_modified
+        ) values (
+            #{storageId}, #{platform}, #{uploadId}, #{partNumber}, #{partSize}, #{etag}, #{hashInfo}, #{createTime}, #{lastModified}
+        )
+        on duplicate key update
+            storage_id = values(storage_id),
+            platform = values(platform),
+            part_size = values(part_size),
+            etag = values(etag),
+            hash_info = values(hash_info),
+            last_modified = values(last_modified)
+    </insert>
+
+    <delete id="deleteStorageFilePartByUploadId" parameterType="String">
+        delete from sys_storage_file_part where upload_id = #{uploadId}
+    </delete>
+</mapper>

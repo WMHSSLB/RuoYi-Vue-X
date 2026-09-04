@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysStorageFileMapper">
+
+    <resultMap type="SysStorageFile" id="SysStorageFileResult">
+        <id     property="fileId"           column="file_id"           />
+        <result property="storageId"        column="storage_id"        />
+        <result property="url"              column="url"               />
+        <result property="size"             column="size"              />
+        <result property="filename"         column="filename"          />
+        <result property="originalFilename" column="original_filename" />
+        <result property="basePath"         column="base_path"         />
+        <result property="path"             column="path"              />
+        <result property="ext"              column="ext"               />
+        <result property="contentType"      column="content_type"      />
+        <result property="platform"         column="platform"          />
+        <result property="thUrl"            column="th_url"            />
+        <result property="thFilename"       column="th_filename"       />
+        <result property="thSize"           column="th_size"           />
+        <result property="thContentType"    column="th_content_type"   />
+        <result property="objectId"         column="object_id"         />
+        <result property="objectType"       column="object_type"       />
+        <result property="metadata"         column="metadata"          />
+        <result property="userMetadata"     column="user_metadata"     />
+        <result property="thMetadata"       column="th_metadata"       />
+        <result property="thUserMetadata"   column="th_user_metadata"  />
+        <result property="attr"             column="attr"              />
+        <result property="fileAcl"          column="file_acl"          />
+        <result property="thFileAcl"        column="th_file_acl"       />
+        <result property="hashInfo"         column="hash_info"         />
+        <result property="uploadId"         column="upload_id"         />
+        <result property="uploadStatus"     column="upload_status"     />
+        <result property="fileStatus"       column="file_status"       />
+        <result property="bizType"          column="biz_type"          />
+        <result property="bizId"            column="biz_id"            />
+        <result property="deleteTime"       column="delete_time"       />
+        <result property="createBy"         column="create_by"         />
+        <result property="createTime"       column="create_time"       />
+        <result property="updateBy"         column="update_by"         />
+        <result property="updateTime"       column="update_time"       />
+        <result property="remark"           column="remark"            />
+    </resultMap>
+
+    <sql id="selectStorageFileVo">
+        select file_id, storage_id, url, size, filename, original_filename, base_path, path, ext, content_type,
+               platform, th_url, th_filename, th_size, th_content_type, object_id, object_type, metadata,
+               user_metadata, th_metadata, th_user_metadata, attr, file_acl, th_file_acl, hash_info,
+               upload_id, upload_status, file_status, biz_type, biz_id, delete_time,
+               create_by, create_time, update_by, update_time, remark
+        from sys_storage_file
+    </sql>
+
+    <select id="selectStorageFileByUrl" parameterType="String" resultMap="SysStorageFileResult">
+        <include refid="selectStorageFileVo"/>
+        where url = #{url}
+        limit 1
+    </select>
+
+    <select id="selectCleanableStorageFiles" resultMap="SysStorageFileResult">
+        <include refid="selectStorageFileVo"/>
+        where (file_status = '0' and create_time &lt; #{tempBefore})
+           or (file_status = '2' and delete_time is not null and delete_time &lt;= #{waitDeleteBefore})
+        order by create_time asc
+    </select>
+
+    <insert id="insertStorageFile" parameterType="SysStorageFile" useGeneratedKeys="true" keyProperty="fileId">
+        insert into sys_storage_file (
+            storage_id, url, size, filename, original_filename, base_path, path, ext, content_type,
+            platform, th_url, th_filename, th_size, th_content_type, object_id, object_type, metadata,
+            user_metadata, th_metadata, th_user_metadata, attr, file_acl, th_file_acl, hash_info,
+            upload_id, upload_status, file_status, biz_type, biz_id, delete_time,
+            create_by, create_time, update_by, update_time, remark
+        ) values (
+            #{storageId}, #{url}, #{size}, #{filename}, #{originalFilename}, #{basePath}, #{path}, #{ext}, #{contentType},
+            #{platform}, #{thUrl}, #{thFilename}, #{thSize}, #{thContentType}, #{objectId}, #{objectType}, #{metadata},
+            #{userMetadata}, #{thMetadata}, #{thUserMetadata}, #{attr}, #{fileAcl}, #{thFileAcl}, #{hashInfo},
+            #{uploadId}, #{uploadStatus}, #{fileStatus}, #{bizType}, #{bizId}, #{deleteTime},
+            #{createBy}, #{createTime}, #{updateBy}, #{updateTime}, #{remark}
+        )
+    </insert>
+
+    <update id="updateStorageFile" parameterType="SysStorageFile">
+        update sys_storage_file
+        <set>
+            storage_id = #{storageId},
+            size = #{size},
+            filename = #{filename},
+            original_filename = #{originalFilename},
+            base_path = #{basePath},
+            path = #{path},
+            ext = #{ext},
+            content_type = #{contentType},
+            platform = #{platform},
+            th_url = #{thUrl},
+            th_filename = #{thFilename},
+            th_size = #{thSize},
+            th_content_type = #{thContentType},
+            object_id = #{objectId},
+            object_type = #{objectType},
+            metadata = #{metadata},
+            user_metadata = #{userMetadata},
+            th_metadata = #{thMetadata},
+            th_user_metadata = #{thUserMetadata},
+            attr = #{attr},
+            file_acl = #{fileAcl},
+            th_file_acl = #{thFileAcl},
+            hash_info = #{hashInfo},
+            upload_id = #{uploadId},
+            upload_status = #{uploadStatus},
+            update_time = #{updateTime}
+        </set>
+        where file_id = #{fileId}
+    </update>
+
+    <delete id="deleteStorageFileByUrl" parameterType="String">
+        delete from sys_storage_file where url = #{url}
+    </delete>
+
+    <update id="bindStorageFile">
+        update sys_storage_file
+        set file_status = '1',
+            biz_type = #{bizType},
+            biz_id = #{bizId},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where url = #{url}
+          and file_status != '3'
+    </update>
+
+    <update id="markStorageFileWaitDelete">
+        update sys_storage_file
+        set file_status = '2',
+            delete_time = #{deleteTime},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where url = #{url}
+          and file_status != '3'
+    </update>
+
+    <update id="markStorageFileDeleted">
+        update sys_storage_file
+        set file_status = '3',
+            delete_time = sysdate(),
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where url = #{url}
+    </update>
+</mapper>
