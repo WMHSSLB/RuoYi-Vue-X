@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.filter.CorsFilter;
 import com.ruoyi.framework.config.properties.PermitAllUrlProperties;
+import com.ruoyi.framework.config.properties.StorageFileSecurityProperties;
 import com.ruoyi.framework.security.filter.JwtAuthenticationTokenFilter;
 import com.ruoyi.framework.security.handle.AuthenticationEntryPointImpl;
 import com.ruoyi.framework.security.handle.LogoutSuccessHandlerImpl;
@@ -58,6 +59,14 @@ public class SecurityConfig
     @Autowired
     private PermitAllUrlProperties permitAllUrl;
 
+    /**
+     * 公开文件访问路径
+     * <p>
+     * 只放行配置中的公开路径，私有路径继续进入登录认证
+     */
+    @Autowired
+    private StorageFileSecurityProperties storageFileSecurityProperties;
+
 	/**
 	 * 身份验证实现
 	 */
@@ -100,13 +109,19 @@ public class SecurityConfig
             .authorizeHttpRequests((requests) -> {
                 permitAllUrl.getUrls().forEach(url -> requests.requestMatchers(url).permitAll());
                 // 对于登录login 注册register 验证码captchaImage 允许匿名访问
-                requests.requestMatchers("/login", "/register", "/captchaImage").permitAll()
-                    // 静态资源，可匿名访问
-                    .requestMatchers(HttpMethod.GET, "/", "/*.html", "/**.html", "/**.css", "/**.js", "/profile/**").permitAll()
-                    // Knife4j依赖 /doc.html、/webjars/** 和 springdoc 的 /v3/api-docs/**，放行后才能匿名打开接口文档
-                    .requestMatchers("/doc.html", "/webjars/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll()
-                    // 除上面外的所有请求全部需要鉴权认证
-                    .anyRequest().authenticated();
+                requests.requestMatchers("/login", "/register", "/captchaImage").permitAll();
+                // 静态资源和若依历史 /profile 本地资源继续允许匿名访问
+                requests.requestMatchers(HttpMethod.GET, "/", "/*.html", "/**.html", "/**.css", "/**.js", "/profile/**").permitAll();
+                String[] publicPathPatterns = getStorageFilePublicPathPatterns();
+                if (publicPathPatterns.length > 0)
+                {
+                    // 只放行公开文件路径，例如 /file/upload/public/**
+                    requests.requestMatchers(HttpMethod.GET, publicPathPatterns).permitAll();
+                }
+                // Knife4j依赖 /doc.html、/webjars/** 和 springdoc 的 /v3/api-docs/**，放行后才能匿名打开接口文档
+                requests.requestMatchers("/doc.html", "/webjars/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll();
+                // 除上面外的所有请求全部需要鉴权认证
+                requests.anyRequest().authenticated();
             })
             // 添加Logout filter
             .logout(logout -> logout.logoutUrl("/logout").logoutSuccessHandler(logoutSuccessHandler))
@@ -125,5 +140,23 @@ public class SecurityConfig
     public BCryptPasswordEncoder bCryptPasswordEncoder()
     {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * 获取公开文件访问路径
+     *
+     * @return 已清洗的公开文件访问路径
+     */
+    private String[] getStorageFilePublicPathPatterns()
+    {
+        // 过滤空配置，允许通过空列表关闭所有 X File Storage 匿名访问
+        if (storageFileSecurityProperties.getPublicPathPatterns() == null)
+        {
+            return new String[0];
+        }
+        return storageFileSecurityProperties.getPublicPathPatterns().stream()
+                .map(String::trim)
+                .filter(pattern -> !pattern.isEmpty())
+                .toArray(String[]::new);
     }
 }
