@@ -1,7 +1,9 @@
 package com.ruoyi.web.controller.common;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.x.file.storage.core.FileInfo;
@@ -445,6 +447,64 @@ public class CommonController
     }
 
     /**
+     * 查询文件回显信息
+     * <p>
+     * 该接口用于兼容前端组件只有 fileId 时的补查场景，普通业务私有文件优先由业务列表或详情接口返回 fileList
+     *
+     * @param fileId 文件ID
+     * @param accessToken 文件短期访问 token
+     * @return 文件回显 DTO
+     */
+    @GetMapping("/file/info/{fileId}")
+    public AjaxResult getStorageFileInfo(@PathVariable Long fileId,
+            @RequestParam(value = "token", required = false) String accessToken)
+    {
+        // 前端组件补查文件信息时仍复用文件下载鉴权，避免任意登录用户枚举私有文件名
+        SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
+        if (storageFile == null)
+        {
+            return AjaxResult.error("文件记录不存在");
+        }
+        checkStorageInfoAllowed(storageFile, accessToken);
+        return AjaxResult.success(buildStorageFileRespDTO(storageFile));
+    }
+
+    /**
+     * 批量查询文件回显信息
+     * <p>
+     * 该接口用于兼容前端上传组件按 fileId 批量补查文件名和访问地址，普通业务私有文件优先由业务接口返回 fileList
+     *
+     * @param fileIds 逗号分隔的文件ID，例如 70,73,74,75
+     * @param accessToken 文件短期访问 token
+     * @return 文件回显 DTO 列表
+     */
+    @GetMapping("/file/listByIds")
+    public AjaxResult listStorageFileByIds(@RequestParam("fileIds") String fileIds,
+            @RequestParam(value = "token", required = false) String accessToken)
+    {
+        // 多文件字段保存逗号分隔 fileId 时，组件可通过一次请求获取所有文件名和访问地址
+        List<Long> idList = parseFileIds(fileIds);
+        List<SysStorageFile> storageFiles = storageFileService.selectStorageFileByIds(idList);
+        Map<Long, SysStorageFile> storageFileMap = new LinkedHashMap<Long, SysStorageFile>();
+        for (SysStorageFile storageFile : storageFiles)
+        {
+            // 查询结果转成 Map 后按入参顺序重新组装，保证前端回显顺序稳定
+            storageFileMap.put(storageFile.getFileId(), storageFile);
+        }
+        List<StorageFileUploadRespDTO> fileList = new ArrayList<StorageFileUploadRespDTO>();
+        for (Long fileId : idList)
+        {
+            SysStorageFile storageFile = storageFileMap.get(fileId);
+            if (storageFile != null)
+            {
+                checkStorageInfoAllowed(storageFile, accessToken);
+                fileList.add(buildStorageFileRespDTO(storageFile));
+            }
+        }
+        return AjaxResult.success(fileList);
+    }
+
+    /**
      * 将分片列表转换为接口返回 DTO 列表
      *
      * @param filePartInfos X File Storage 分片列表
@@ -547,6 +607,18 @@ public class CommonController
     }
 
     /**
+     * 校验当前请求是否允许查看文件回显信息
+     *
+     * @param storageFile 存储文件记录
+     * @param accessToken 文件短期访问 token
+     */
+    private void checkStorageInfoAllowed(SysStorageFile storageFile, String accessToken)
+    {
+        // 文件信息和文件内容使用同一套私有访问边界，避免任意登录用户按 fileId 枚举私有文件名
+        checkStorageDownloadAllowed(storageFile, null, null, accessToken);
+    }
+
+    /**
      * 判断当前用户是否拥有存储文件管理下载权限
      *
      * @return true 表示拥有管理下载权限
@@ -618,6 +690,74 @@ public class CommonController
                 resp.setThFileName(resp.getThPreviewUrl());
             }
         }
+        return resp;
+    }
+
+    /**
+     * 解析逗号分隔的文件ID
+     *
+     * @param fileIds 逗号分隔的文件ID
+     * @return 文件ID列表
+     */
+    private List<Long> parseFileIds(String fileIds)
+    {
+        List<Long> idList = new ArrayList<Long>();
+        if (StringUtils.isBlank(fileIds))
+        {
+            return idList;
+        }
+        String[] values = fileIds.split(",");
+        for (String value : values)
+        {
+            if (StringUtils.isBlank(value))
+            {
+                continue;
+            }
+            try
+            {
+                idList.add(Long.valueOf(value.trim()));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ServiceException("文件ID格式不正确");
+            }
+        }
+        return idList;
+    }
+
+    /**
+     * 根据文件记录构造前端回显 DTO
+     *
+     * @param storageFile 文件记录
+     * @return 文件回显 DTO
+     */
+    private StorageFileUploadRespDTO buildStorageFileRespDTO(SysStorageFile storageFile)
+    {
+        StorageFileUploadRespDTO resp = new StorageFileUploadRespDTO();
+        if (storageFile == null)
+        {
+            return resp;
+        }
+        // fileId 是业务表关联文件资产和前端后续下载的稳定主键
+        resp.setFileId(storageFile.getFileId());
+        // 对外地址按 access-url-mode 生成，避免私有文件暴露真实对象存储地址
+        resp.setUrl(storageFileAccessUrlBuilder.buildPreviewUrl(storageFile));
+        resp.setPreviewUrl(resp.getUrl());
+        resp.setDownloadUrl(storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
+        resp.setObjectKey(storageFile.getObjectKey());
+        resp.setFileName(resp.getUrl());
+        resp.setNewFileName(storageFile.getFilename());
+        resp.setOriginalFilename(storageFile.getOriginalFilename());
+        resp.setPlatform(storageFile.getPlatform());
+        resp.setThUrl(storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
+        resp.setThPreviewUrl(resp.getThUrl());
+        resp.setThObjectKey(storageFile.getThObjectKey());
+        resp.setThFileName(resp.getThUrl());
+        resp.setThNewFileName(storageFile.getThFilename());
+        resp.setSize(storageFile.getSize());
+        resp.setThSize(storageFile.getThSize());
+        resp.setContentType(storageFile.getContentType());
+        resp.setAccess(storageFile.getAccess());
         return resp;
     }
 
