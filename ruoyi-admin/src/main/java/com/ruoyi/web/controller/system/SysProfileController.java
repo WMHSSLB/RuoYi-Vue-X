@@ -5,6 +5,7 @@ import org.dromara.x.file.storage.core.FileInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.constant.Constants;
 import com.ruoyi.common.config.RuoYiConfig;
+import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.entity.SysUser;
@@ -28,7 +30,9 @@ import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
 import com.ruoyi.common.utils.file.XFileStorageUtils;
 import com.ruoyi.framework.web.service.TokenService;
+import com.ruoyi.system.domain.SysStorageFile;
 import com.ruoyi.system.service.ISysStorageFileService;
+import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
 import com.ruoyi.system.service.ISysUserService;
 
 /**
@@ -68,9 +72,25 @@ public class SysProfileController extends BaseController
     private ISysStorageFileService storageFileService;
 
     /**
+     * 文件对外访问地址构建器
+     * <p>
+     * 用户表保存真实头像 URL，接口返回时转换成公开域名或后端代理地址
+     */
+    @Autowired
+    private StorageFileAccessUrlBuilder storageFileAccessUrlBuilder;
+
+    /**
+     * 编程式事务模板
+     * <p>
+     * 头像上传真实文件不参与数据库事务，只把用户头像更新、文件绑定和旧头像状态标记放入同一个事务
+     */
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    /**
      * 头像业务类型
      */
-    private static final String BIZ_TYPE_AVATAR = "avatar";
+    private static final String BIZ_TYPE_AVATAR = StorageFileConstants.BIZ_TYPE_AVATAR;
 
     /**
      * 头像缩略图默认宽度
@@ -208,33 +228,70 @@ public class SysProfileController extends BaseController
                     AVATAR_THUMBNAIL_WIDTH, AVATAR_THUMBNAIL_HEIGHT);
             // 数据库存储最终可访问的头像 URL
             String avatar = fileInfo.getUrl();
-            if (userService.updateUserAvatar(loginUser.getUserId(), avatar))
+            // 先记录旧头像，事务提交成功后再处理历史本地文件删除
+            String oldAvatar = loginUser.getUser().getAvatar();
+            boolean avatarSaved;
+            try
             {
-                // 头像保存成功后把本次上传的新文件绑定到用户业务，避免被临时文件清理任务误删
-                storageFileService.bindStorageFile(avatar, BIZ_TYPE_AVATAR, String.valueOf(loginUser.getUserId()),
-                        loginUser.getUsername());
-                // 更新头像成功后再处理旧头像清理
-                String oldAvatar = loginUser.getUser().getAvatar();
-                if (StringUtils.isNotEmpty(oldAvatar))
+                // 头像业务数据库动作放在同一事务里，避免用户表已更新但文件资产未绑定
+                avatarSaved = Boolean.TRUE.equals(transactionTemplate.execute(status ->
                 {
-                    // 历史头像可能仍是本地 /profile 路径，新头像则是 X File Storage 返回的远程 URL
-                    if (oldAvatar.startsWith(Constants.RESOURCE_PREFIX))
+                    // 更新用户头像字段，用户表仍保存最终可访问的原图 URL
+                    if (!userService.updateUserAvatar(loginUser.getUserId(), avatar))
                     {
-                        // 若依历史本地头像继续按本地文件删除
-                        FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
+                        return false;
                     }
-                    else
+                    // 头像保存成功后把本次上传的新文件绑定到用户业务，避免被临时文件清理任务误删
+                    storageFileService.bindStorageFile(avatar, BIZ_TYPE_AVATAR, String.valueOf(loginUser.getUserId()),
+                            loginUser.getUsername());
+                    if (StringUtils.isNotEmpty(oldAvatar) && !oldAvatar.startsWith(Constants.RESOURCE_PREFIX))
                     {
                         // X File Storage 上传的旧头像先标记待删除，交给定时任务延迟物理清理
                         storageFileService.markStorageFileWaitDelete(oldAvatar, BIZ_TYPE_AVATAR, loginUser.getUsername());
                     }
+                    return true;
+                }));
+            }
+            catch (Exception e)
+            {
+                // 数据库事务异常时立即补偿删除本次新头像，避免用户头像未保存但对象存储残留
+                deleteUploadedAvatar(avatar);
+                throw e;
+            }
+            if (avatarSaved)
+            {
+                if (StringUtils.isNotEmpty(oldAvatar) && oldAvatar.startsWith(Constants.RESOURCE_PREFIX))
+                {
+                    // 历史若依本地头像不参与数据库事务，等数据库提交成功后再删除磁盘文件
+                    FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
                 }
+                // 绑定后按 URL 读取文件资产记录，头像接口也同步返回 fileId、access 和对象 Key
+                SysStorageFile storageFile = storageFileService.selectStorageFileByUrl(avatar);
+                // 头像返回给前端时使用对外预览地址，避免私有或代理模式泄露真实存储 URL
+                String displayAvatar = storageFile == null ? avatar : storageFileAccessUrlBuilder.buildPreviewUrl(storageFile);
                 // 返回头像 URL 和实际平台，前端可据此展示当前上传去向
                 AjaxResult ajax = AjaxResult.success();
-                ajax.put("imgUrl", avatar);
+                ajax.put("imgUrl", displayAvatar);
                 ajax.put("platform", fileInfo.getPlatform());
+                if (storageFile != null)
+                {
+                    // fileId 是后续前端预览、下载、业务绑定和后台排查的稳定文件资产主键
+                    ajax.put("fileId", storageFile.getFileId());
+                    // access 从文件记录表返回，前端可区分公开直连和私有授权下载
+                    ajax.put("access", storageFile.getAccess());
+                    // objectKey 是对象存储里的真实对象定位信息，避免业务只依赖 URL
+                    ajax.put("objectKey", storageFile.getObjectKey());
+                    // thObjectKey 对应缩略图对象定位信息
+                    ajax.put("thObjectKey", storageFile.getThObjectKey());
+                    // previewUrl 是头像对外预览地址，前端展示优先使用它
+                    ajax.put("previewUrl", displayAvatar);
+                    // downloadUrl 是头像下载地址，后续如果头像需要下载可直接复用
+                    ajax.put("downloadUrl", storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
+                    // thPreviewUrl 是头像缩略图对外预览地址
+                    ajax.put("thPreviewUrl", storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
+                }
                 // 返回缩略图地址，前端列表或头像小尺寸展示可优先使用
-                ajax.put("thUrl", fileInfo.getThUrl());
+                ajax.put("thUrl", storageFile == null ? fileInfo.getThUrl() : storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
                 // 同步令牌缓存中的头像地址，前端无需重新登录即可看到新头像
                 loginUser.getUser().setAvatar(avatar);
                 tokenService.setLoginUser(loginUser);
