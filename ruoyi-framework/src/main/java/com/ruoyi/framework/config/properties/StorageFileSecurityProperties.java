@@ -16,7 +16,9 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "ruoyi.storage-file")
 public class StorageFileSecurityProperties
 {
-    /** 公开文件访问路径 */
+    /**
+     * 公开文件访问路径
+     */
     private List<String> publicPathPatterns = new ArrayList<String>();
 
     public List<String> getPublicPathPatterns()
@@ -26,6 +28,6 @@ public class StorageFileSecurityProperties
 
     public void setPublicPathPatterns(List<String> publicPathPatterns)
     {
-        this.publicPathPatterns = publicPathPatterns;
+        this.publicPathPatterns = publicPathPatterns == null ? new ArrayList<String>() : publicPathPatterns;
     }
 }
