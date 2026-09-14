@@ -30,6 +30,8 @@ ruoyi:
       thumbnail-width: 100
       # 缩略图高度
       thumbnail-height: 100
+      # 缩略图文件名后缀，头像统一生成 jpg 预览图
+      thumbnail-suffix: ".min.jpg"
     # 图片上传场景，前端传 uploadScene=commonImg 时生效
     commonImg:
       # 公开图片允许匿名访问，适合富文本图片、封面图等业务
@@ -46,6 +48,10 @@ ruoyi:
       thumbnail-width: 100
       # 缩略图高度
       thumbnail-height: 100
+      # 缩略图文件名后缀，普通图片默认生成 jpg 预览图
+      thumbnail-suffix: ".min.jpg"
+      # 批量上传图片时单次最多允许上传的文件数量
+      max-batch-upload-count: 10
     commonFile:
       # 普通附件默认私有访问，避免业务资料被匿名访问
       access: private
@@ -57,6 +63,8 @@ ruoyi:
       allowed-extension: doc,xls,ppt,txt,pdf
       # 是否生成缩略图
       thumbnail: false
+      # 批量上传附件时单次最多允许上传的文件数量
+      max-batch-upload-count: 10
     video:
       # 视频默认私有访问，需要公开时再改成 public 或单独走签名 URL
       access: private
@@ -73,18 +81,34 @@ ruoyi:
       allowed-extension: mp3,wav,wma,ogg
   # 存储文件管理配置
   storage-file:
+    # 对外访问地址模式，direct 直连存储地址，domain 使用公开文件域名，backend 使用后端代理地址
+    access-url-mode: direct
+    # 公开文件域名，access-url-mode 为 domain 时生效，例如 https://file.example.com/
+    public-domain:
+    # 是否要求通用上传必须传 uploadScene，生产环境建议开启，新业务避免绕过场景规则
+    require-upload-scene: false
+    # 通用批量上传接口单次最多允许上传的文件数量，避免一次请求上传过多文件占用请求线程和存储连接
+    max-batch-upload-count: 20
     # 公开文件访问路径，匹配到的 GET 请求允许匿名访问
     public-path-patterns:
       # local-plus 的 domain 为 /file/，base-path 为 upload/，公开场景 path 第一层为 public
       - /file/upload/public/**
     # 临时文件超过该小时数仍未绑定业务时允许定时任务清理
     temp-expire-hours: 24
+    # 私有文件访问授权有效秒数，业务接口签发后前端在该时间内可访问代理地址
+    access-token-expire-seconds: 300
     # 未配置业务类型时使用的默认待删除延迟小时数
     default-delete-delay-hours: 24
     # 不同业务类型的待删除延迟小时数
+    # 普通业务无需配置，未命中时统一使用 default-delete-delay-hours
+    # 特殊业务需要不同保留期时再按 bizType 增加覆盖项
     delete-delay-hours:
       # 头像旧文件延迟清理时间
       avatar: 24
+      # 合同附件示例，启用时去掉注释并改成实际 bizType
+      # contractFile: 168
+      # 支付凭证示例，启用时去掉注释并改成实际 bizType
+      # paymentVoucher: 720
 
 # 开发环境配置
 server:
@@ -125,7 +149,8 @@ spring:
     # 国际化资源文件路径
     basename: i18n/messages
   profiles:
-    active: druid
+    # 激活 druid 和 prod 配置，prod 中保存生产环境 COS 等敏感配置占位默认值
+    active: druid,prod
   # 文件上传
   servlet:
     multipart:
@@ -267,7 +292,7 @@ dromara:
   # X File Storage 统一文件存储配置
   x-file-storage:
     # 默认使用的存储平台，不在接口参数中传 platform 时使用这个平台
-    default-platform: local-1
+    default-platform: tencent-cos-1
     # 缩略图文件名后缀，生成缩略图时会追加到原文件名后面
     thumbnail-suffix: ".min.jpg"
     # 本地增强存储平台，适合开发环境或单机部署使用

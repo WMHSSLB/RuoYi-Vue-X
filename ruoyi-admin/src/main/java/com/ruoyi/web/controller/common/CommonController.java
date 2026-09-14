@@ -6,32 +6,44 @@ import java.util.List;
 import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.dromara.x.file.storage.core.upload.FilePartInfo;
 import org.dromara.x.file.storage.core.upload.FilePartInfoList;
 import org.dromara.x.file.storage.core.upload.MultipartUploadSupportInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import com.ruoyi.common.config.RuoYiConfig;
+import com.ruoyi.common.constant.HttpStatus;
+import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.model.StorageFilePartRespDTO;
+import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
+import com.ruoyi.common.enums.StorageFileAccess;
+import com.ruoyi.common.enums.StorageFileStatus;
+import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
 import com.ruoyi.common.utils.file.XFileStorageUtils;
+import com.ruoyi.system.domain.SysStorageFile;
+import com.ruoyi.system.service.ISysStorageFileService;
+import com.ruoyi.system.service.StorageFileAccessTokenService;
+import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
 
 /**
  * 通用文件接口
  * <p>
- * 下载接口仍沿用若依原来的本地文件流程；上传接口统一交给
- * {@link XFileStorageUtils} 处理，因此调用方既可以使用配置中的默认平台
- * 也可以通过 platform 参数指定 local-1、aliyun-oss-1、minio-1 等存储平台
+ * 下载接口保留若依原有本地文件流程；上传接口统一交给 XFileStorageUtils 处理，支持默认平台和显式 platform 平台
  *
  * @author ruoyi
  */
@@ -42,33 +54,49 @@ public class CommonController
     private static final Logger log = LoggerFactory.getLogger(CommonController.class);
 
     /**
-     * X File Storage 适配工具
-     * <p>
-     * 控制器不直接调用第三方上传 API，而是通过该工具统一复用若依的校验
-     * 命名规则和平台选择逻辑
+     * X File Storage 上传适配工具
      */
     private final XFileStorageUtils xFileStorageUtils;
 
     /**
-     * 构造器注入上传工具，明确当前控制器依赖的文件存储能力
+     * 存储文件记录服务，用于私有文件下载鉴权和文件资产记录查询
+     */
+    private final ISysStorageFileService storageFileService;
+
+    /**
+     * 文件对外访问地址构建器
+     */
+    private final StorageFileAccessUrlBuilder storageFileAccessUrlBuilder;
+
+    /**
+     * 存储文件短期访问授权服务
+     */
+    private final StorageFileAccessTokenService storageFileAccessTokenService;
+
+    /**
+     * 构造通用文件控制器
      *
      * @param xFileStorageUtils 统一上传工具
+     * @param storageFileService 存储文件记录服务
+     * @param storageFileAccessUrlBuilder 文件对外访问地址构建器
+     * @param storageFileAccessTokenService 存储文件短期访问授权服务
      */
-    public CommonController(XFileStorageUtils xFileStorageUtils)
+    public CommonController(XFileStorageUtils xFileStorageUtils, ISysStorageFileService storageFileService,
+            StorageFileAccessUrlBuilder storageFileAccessUrlBuilder, StorageFileAccessTokenService storageFileAccessTokenService)
     {
         this.xFileStorageUtils = xFileStorageUtils;
+        this.storageFileService = storageFileService;
+        this.storageFileAccessUrlBuilder = storageFileAccessUrlBuilder;
+        this.storageFileAccessTokenService = storageFileAccessTokenService;
     }
 
     /**
      * 从若依本地下载目录下载导出文件
-     * <p>
-     * 该接口主要服务导出、临时文件下载等本地流程，所以继续保留若依原来的
-     * 本地文件读取方式，不走对象存储
      *
      * @param fileName 下载目录下的相对文件名
      * @param delete 下载完成后是否删除本地临时文件
-     * @param response 用于输出文件流的响应对象
-     * @param request 当前请求对象，保留原始签名兼容性
+     * @param response 响应对象
+     * @param request 请求对象，保留若依原始签名兼容性
      */
     @GetMapping("/download")
     public void fileDownload(String fileName, Boolean delete, HttpServletResponse response, HttpServletRequest request)
@@ -78,7 +106,7 @@ public class CommonController
             // 下载前先校验文件名，避免路径穿越和非法扩展名
             if (!FileUtils.checkAllowDownload(fileName))
             {
-                throw new Exception(StringUtils.format("文件名称({})非法，不允许下载。 ", fileName));
+                throw new Exception(StringUtils.format("文件名称({})非法，不允许下载", fileName));
             }
             // 导出文件名通常带时间戳前缀，这里生成浏览器看到的真实下载名
             String realFileName = System.currentTimeMillis() + fileName.substring(fileName.indexOf("_") + 1);
@@ -89,7 +117,7 @@ public class CommonController
             response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
             FileUtils.setAttachmentResponseHeader(response, realFileName);
             FileUtils.writeBytes(filePath, response.getOutputStream());
-            if (delete)
+            if (Boolean.TRUE.equals(delete))
             {
                 // 临时导出文件按调用方要求在下载后删除
                 FileUtils.deleteFile(filePath);
@@ -97,16 +125,14 @@ public class CommonController
         }
         catch (Exception e)
         {
-            log.error("下载文件失败", e);
+            log.error("下载文件失败，fileName={}", fileName, e);
         }
     }
 
     /**
      * 通用单文件上传
      * <p>
-     * platform 为空时使用 {@code dromara.x-file-storage.default-platform}
-     * 配置的默认平台；platform 不为空时必须匹配 application.yml 中已启用的
-     * 存储平台标识
+     * platform 为空时使用配置中的默认平台；uploadScene 不为空时按场景配置覆盖大小、格式、缩略图和访问策略
      *
      * @param file 前端上传的文件
      * @param platform 可选存储平台标识，例如 local-1、aliyun-oss-1、minio-1
@@ -114,7 +140,7 @@ public class CommonController
      * @param thumbnail 是否生成缩略图，仅图片文件支持
      * @param thumbnailWidth 缩略图宽度，为空时使用框架默认尺寸
      * @param thumbnailHeight 缩略图高度，为空时使用框架默认尺寸
-     * @return 兼容若依前端的上传结果，并额外返回实际使用的平台和缩略图地址
+     * @return 上传结果 DTO
      */
     @PostMapping("/upload")
     public AjaxResult uploadFile(MultipartFile file, @RequestParam(value = "platform", required = false) String platform,
@@ -125,50 +151,31 @@ public class CommonController
     {
         try
         {
-            // platform 为空时走默认平台，不为空时上传到指定平台
-            // uploadScene 不为空时按场景配置覆盖大小、格式和缩略图规则
+            // 统一使用工具类处理平台选择、场景规则、格式校验、缩略图和真实上传
             FileInfo fileInfo = xFileStorageUtils.upload(file, platform, uploadScene, MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION,
                     Boolean.TRUE.equals(thumbnail), thumbnailWidth, thumbnailHeight);
-            // 远程 URL 是前端直接访问和保存的主地址
-            String url = fileInfo.getUrl();
-            AjaxResult ajax = AjaxResult.success();
-            // 单文件上传继续返回平铺字段，方便前端直接读取
-            ajax.put("url", url);
-            ajax.put("fileName", url);
-            ajax.put("newFileName", FileUtils.getName(url));
-            ajax.put("originalFilename", file.getOriginalFilename());
-            // 返回实际平台，便于确认默认平台解析结果和排查上传去向
-            ajax.put("platform", fileInfo.getPlatform());
-            // 返回当前上传场景，便于前端排查使用了哪套规则
-            ajax.put("uploadScene", uploadScene);
-            // 缩略图未生成时 thUrl 为空，前端可继续使用原图 URL
-            ajax.put("thUrl", fileInfo.getThUrl());
-            ajax.put("thFileName", fileInfo.getThUrl());
-            ajax.put("thNewFileName", FileUtils.getName(fileInfo.getThUrl()));
-            ajax.put("thSize", fileInfo.getThSize());
-            ajax.put("size", fileInfo.getSize());
-            ajax.put("contentType", fileInfo.getContentType());
-            return ajax;
+            // 单文件上传返回 data 对象，字段由 DTO 统一维护
+            return AjaxResult.success(buildUploadRespDTO(fileInfo, uploadScene, file.getOriginalFilename()));
         }
         catch (Exception e)
         {
+            // 上传失败记录上下文，方便排查对象存储配置、场景配置或文件限制问题
+            log.error("上传文件失败，platform={}，uploadScene={}，originalFilename={}，size={}", platform, uploadScene,
+                    file == null ? null : file.getOriginalFilename(), file == null ? null : file.getSize(), e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 通用多文件上传
-     * <p>
-     * 本次请求内的多个文件会上传到同一个平台
-     * 返回值使用 fileList 数组承载每个文件的完整元数据，前端无需再拆逗号字符串
      *
      * @param files 前端上传的文件集合
      * @param platform 可选存储平台标识，为空时使用默认平台
-     * @param uploadScene 可选上传场景编码，例如 avatar、contract、importExcel
+     * @param uploadScene 可选上传场景编码
      * @param thumbnail 是否生成缩略图，仅图片文件支持
-     * @param thumbnailWidth 缩略图宽度，为空时使用框架默认尺寸
-     * @param thumbnailHeight 缩略图高度，为空时使用框架默认尺寸
-     * @return 结构化文件列表
+     * @param thumbnailWidth 缩略图宽度
+     * @param thumbnailHeight 缩略图高度
+     * @return fileList 文件结果数组
      */
     @PostMapping("/uploads")
     public AjaxResult uploadFiles(List<MultipartFile> files, @RequestParam(value = "platform", required = false) String platform,
@@ -177,50 +184,40 @@ public class CommonController
             @RequestParam(value = "thumbnailWidth", required = false) Integer thumbnailWidth,
             @RequestParam(value = "thumbnailHeight", required = false) Integer thumbnailHeight) throws Exception
     {
+        List<String> uploadedUrls = new ArrayList<String>();
         try
         {
+            // 批量数量优先读取上传场景配置，场景未配置时回退到全局配置
+            xFileStorageUtils.assertBatchUploadAllowed(files, uploadScene);
             // 结构化文件列表给新前端使用，每个元素对应一个上传文件
-            List<Map<String, Object>> fileList = new ArrayList<Map<String, Object>>();
+            List<StorageFileUploadRespDTO> fileList = new ArrayList<StorageFileUploadRespDTO>();
+            // 已成功上传的 URL 会被收集起来，后续任一文件失败时统一做补偿删除
             for (MultipartFile file : files)
             {
-                // 每个文件使用同一个 platform 策略上传
-                // uploadScene 不为空时按场景配置覆盖大小、格式和缩略图规则
+                // 每个文件使用同一套 platform 和 uploadScene 策略上传
                 FileInfo fileInfo = xFileStorageUtils.upload(file, platform, uploadScene, MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION,
                         Boolean.TRUE.equals(thumbnail), thumbnailWidth, thumbnailHeight);
-                // 远程 URL 是前端保存和展示当前文件的主地址
-                String url = fileInfo.getUrl();
-                // 使用有序 Map 保持返回字段顺序稳定，便于前端联调和接口排查
-                Map<String, Object> fileItem = new LinkedHashMap<String, Object>();
-                fileItem.put("url", url);
-                fileItem.put("fileName", url);
-                fileItem.put("newFileName", FileUtils.getName(url));
-                fileItem.put("originalFilename", file.getOriginalFilename());
-                fileItem.put("platform", fileInfo.getPlatform());
-                fileItem.put("uploadScene", uploadScene);
-                fileItem.put("thUrl", fileInfo.getThUrl());
-                fileItem.put("thFileName", fileInfo.getThUrl());
-                fileItem.put("thNewFileName", FileUtils.getName(fileInfo.getThUrl()));
-                fileItem.put("size", fileInfo.getSize());
-                fileItem.put("thSize", fileInfo.getThSize());
-                fileItem.put("contentType", fileInfo.getContentType());
-                // 当前文件元数据组装完成后加入统一 fileList 返回
-                fileList.add(fileItem);
+                uploadedUrls.add(fileInfo.getUrl());
+                // DTO 内部统一处理 url、缩略图、大小、access 等返回字段
+                fileList.add(buildUploadRespDTO(fileInfo, uploadScene, file.getOriginalFilename()));
             }
-            // 只返回新的结构化 fileList，前端按数组逐项处理
+            // 批量上传继续保留 fileList 字段，前端按数组逐项处理
             AjaxResult ajax = AjaxResult.success();
             ajax.put("fileList", fileList);
             return ajax;
         }
         catch (Exception e)
         {
+            compensateUploadedFiles(uploadedUrls);
+            // 批量上传失败时记录公共上下文，具体失败文件由异常链辅助定位
+            log.error("批量上传文件失败，platform={}，uploadScene={}，fileCount={}", platform, uploadScene,
+                    files == null ? null : files.size(), e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 查询平台是否支持大文件分片上传
-     * <p>
-     * platform 为空时查询默认平台；platform 不为空时查询指定平台
      *
      * @param platform 可选存储平台标识
      * @return 平台分片上传支持信息
@@ -228,7 +225,7 @@ public class CommonController
     @GetMapping("/multipart/support")
     public AjaxResult multipartSupport(@RequestParam(value = "platform", required = false) String platform)
     {
-        // 支持能力由 X File Storage 根据当前平台适配器返回
+        // 支持能力由 X File Storage 根据平台适配器返回
         MultipartUploadSupportInfo supportInfo = xFileStorageUtils.isSupportMultipartUpload(platform);
         AjaxResult ajax = AjaxResult.success();
         ajax.put("platform", platform);
@@ -241,11 +238,9 @@ public class CommonController
 
     /**
      * 初始化大文件分片上传
-     * <p>
-     * 前端在上传第一个分片前调用，返回的 url 和 uploadId 后续分片上传、合并、取消都要继续传回
      *
      * @param originalFilename 原始文件名
-     * @param size 文件总大小
+     * @param size 文件总大小，单位字节
      * @param contentType 文件内容类型
      * @param platform 可选存储平台标识
      * @param uploadScene 可选上传场景编码
@@ -262,23 +257,23 @@ public class CommonController
             // 初始化阶段只创建上传会话和文件记录，不上传实际文件内容
             FileInfo fileInfo = xFileStorageUtils.initiateMultipartUpload(originalFilename, size, contentType, platform, uploadScene,
                     MimeTypeUtils.DEFAULT_ALLOWED_EXTENSION);
-            AjaxResult ajax = AjaxResult.success(toFileItem(fileInfo, originalFilename));
-            ajax.put("uploadScene", uploadScene);
-            return ajax;
+            // 分片初始化返回统一 DTO，前端后续用 url 和 uploadId 继续传分片
+            return AjaxResult.success(buildUploadRespDTO(fileInfo, uploadScene, originalFilename));
         }
         catch (Exception e)
         {
+            // 初始化失败时记录声明大小和内容类型，便于排查场景限制或平台能力问题
+            log.error("初始化分片上传失败，platform={}，uploadScene={}，originalFilename={}，size={}，contentType={}", platform,
+                    uploadScene, originalFilename, size, contentType, e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 上传大文件分片
-     * <p>
-     * partNumber 从 1 开始，前端需要保证同一个 url 下的分片编号稳定
      *
      * @param url 初始化接口返回的文件地址
-     * @param partNumber 分片编号
+     * @param partNumber 分片编号，从 1 开始
      * @param file 当前分片文件
      * @return 当前分片上传结果
      */
@@ -289,19 +284,20 @@ public class CommonController
         try
         {
             // 分片上传成功后框架会回调 FileRecorder.saveFilePart 保存分片记录
+            storageFileService.checkMultipartOwner(url);
             FilePartInfo filePartInfo = xFileStorageUtils.uploadPart(url, partNumber, file);
-            return AjaxResult.success(toFilePartItem(filePartInfo));
+            return AjaxResult.success(StorageFilePartRespDTO.from(filePartInfo));
         }
         catch (Exception e)
         {
+            // 分片上传失败时记录 url 和分片编号，便于前端重试指定分片
+            log.error("上传文件分片失败，url={}，partNumber={}，size={}", url, partNumber, file == null ? null : file.getSize(), e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
-     * 查询已上传的大文件分片
-     * <p>
-     * 用于前端断点续传时判断哪些分片已经上传成功
+     * 查询已经上传的大文件分片
      *
      * @param url 初始化接口返回的文件地址
      * @param maxParts 本次最多返回的分片数量
@@ -316,9 +312,10 @@ public class CommonController
         try
         {
             // 部分平台不支持列举分片，具体能力可先调用 support 接口确认
+            storageFileService.checkMultipartOwner(url);
             FilePartInfoList filePartInfoList = xFileStorageUtils.listParts(url, maxParts, partNumberMarker);
             AjaxResult ajax = AjaxResult.success();
-            ajax.put("file", toFileItem(filePartInfoList.getFileInfo(), null));
+            ajax.put("file", buildUploadRespDTO(filePartInfoList.getFileInfo(), null, null));
             ajax.put("partList", toFilePartList(filePartInfoList.getList()));
             ajax.put("maxParts", filePartInfoList.getMaxParts());
             ajax.put("truncated", filePartInfoList.getIsTruncated());
@@ -328,14 +325,14 @@ public class CommonController
         }
         catch (Exception e)
         {
+            // 查询分片失败时记录分页参数，便于判断是否平台不支持 listParts
+            log.error("查询文件分片失败，url={}，maxParts={}，partNumberMarker={}", url, maxParts, partNumberMarker, e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 完成大文件分片上传
-     * <p>
-     * 前端确认所有分片上传成功后调用，存储平台会把分片合并为最终文件
      *
      * @param url 初始化接口返回的文件地址
      * @return 合并后的文件信息
@@ -346,19 +343,20 @@ public class CommonController
         try
         {
             // 合并成功后框架会更新主文件记录并删除分片记录
+            storageFileService.checkMultipartOwner(url);
             FileInfo fileInfo = xFileStorageUtils.completeMultipartUpload(url);
-            return AjaxResult.success(toFileItem(fileInfo, null));
+            return AjaxResult.success(buildUploadRespDTO(fileInfo, null, null));
         }
         catch (Exception e)
         {
+            // 合并失败时记录 url，便于根据 uploadId 和平台日志继续排查
+            log.error("完成分片上传失败，url={}", url, e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 取消大文件分片上传
-     * <p>
-     * 用于前端主动放弃上传或业务侧回滚上传会话
      *
      * @param url 初始化接口返回的文件地址
      * @return 取消后的文件信息
@@ -369,24 +367,24 @@ public class CommonController
         try
         {
             // 取消成功后框架会通知平台释放未合并分片
+            storageFileService.checkMultipartOwner(url);
             FileInfo fileInfo = xFileStorageUtils.abortMultipartUpload(url);
-            return AjaxResult.success(toFileItem(fileInfo, null));
+            return AjaxResult.success(buildUploadRespDTO(fileInfo, null, null));
         }
         catch (Exception e)
         {
+            // 取消失败时记录 url，便于后续人工清理未完成的分片会话
+            log.error("取消分片上传失败，url={}", url, e);
             return AjaxResult.error(e.getMessage());
         }
     }
 
     /**
      * 下载 /profile 地址引用的本地资源
-     * <p>
-     * 对象存储返回的是远程 URL 或签名 URL，应直接访问对应 URL；该接口只负责
-     * 解析若依历史本地资源
      *
      * @param resource /profile 资源路径
      * @param request 当前请求对象
-     * @param response 用于输出本地资源的响应对象
+     * @param response 响应对象
      */
     @GetMapping("/download/resource")
     public void resourceDownload(String resource, HttpServletRequest request, HttpServletResponse response)
@@ -397,12 +395,10 @@ public class CommonController
             // 本地资源下载同样先做路径穿越和扩展名白名单校验
             if (!FileUtils.checkAllowDownload(resource))
             {
-                throw new Exception(StringUtils.format("资源文件({})非法，不允许下载。 ", resource));
+                throw new Exception(StringUtils.format("资源文件({})非法，不允许下载", resource));
             }
-            // 获取若依本地资源根目录
-            String localPath = RuoYiConfig.getProfile();
             // 去掉 /profile 前缀后拼接到 ruoyi.profile
-            String downloadPath = localPath + FileUtils.stripPrefix(resource);
+            String downloadPath = RuoYiConfig.getProfile() + FileUtils.stripPrefix(resource);
             // 使用路径最后一段作为浏览器下载文件名
             String downloadName = StringUtils.substringAfterLast(downloadPath, "/");
             // 设置附件响应头并写出本地资源内容
@@ -412,26 +408,39 @@ public class CommonController
         }
         catch (Exception e)
         {
-            log.error("下载文件失败", e);
+            log.error("下载资源文件失败，resource={}", resource, e);
         }
     }
 
     /**
      * 下载 X File Storage 管理的文件
      * <p>
-     * 私有文件不允许浏览器直接访问 /file/upload/private/**
-     * 前端应通过该接口携带登录 token 下载，由后端完成权限入口和文件流输出
+     * 私有文件不能只凭 URL 下载，通用入口只处理公开文件、本人临时文件、本人头像和管理员兜底下载
      *
      * @param url X File Storage 返回的文件 URL
-     * @param response 用于输出文件内容的响应对象
+     * @param bizType 可选业务类型，仅用于记录排查和识别误用入口
+     * @param bizId 可选业务 ID，仅用于记录排查和识别误用入口
+     * @param response 响应对象
      */
     @PostMapping("/storage/download")
-    public void storageDownload(@RequestParam("url") String url, HttpServletResponse response)
+    @Deprecated
+    public void storageDownload(@RequestParam("url") String url,
+            @RequestParam(value = "bizType", required = false) String bizType,
+            @RequestParam(value = "bizId", required = false) String bizId,
+            @RequestParam(value = "token", required = false) String accessToken, HttpServletResponse response)
     {
+        // 兼容旧的 URL 下载入口，真实鉴权和响应流写出统一交给文件访问服务
         try
         {
-            // 先从文件记录表还原 FileInfo，避免只靠 URL 猜平台和对象路径
-            FileInfo fileInfo = xFileStorageUtils.getFileInfoByUrl(url);
+            // 先查数据库文件记录，私有下载必须基于记录里的业务归属做鉴权
+            SysStorageFile storageFile = storageFileService.selectStorageFileByUrl(url);
+            checkStorageDownloadAllowed(storageFile, bizType, bizId, accessToken);
+            // 数据库记录还原为 FileInfo，框架才能定位具体平台和对象路径
+            FileInfo fileInfo = storageFileService.toFileInfo(storageFile);
+            if (fileInfo == null)
+            {
+                throw new ServiceException("文件记录不存在");
+            }
             // 原始文件名优先用于下载文件名，缺失时使用 URL 最后一段兜底
             String downloadName = StringUtils.isNotBlank(fileInfo.getOriginalFilename()) ? fileInfo.getOriginalFilename()
                     : FileUtils.getName(fileInfo.getUrl());
@@ -443,94 +452,456 @@ public class CommonController
             // 从实际存储平台下载文件内容并写入响应流
             response.getOutputStream().write(xFileStorageUtils.downloadBytes(fileInfo));
         }
+        catch (ServiceException e)
+        {
+            // 权限或业务归属校验失败返回 403，避免私有文件 URL 泄露后被同系统用户下载
+            log.warn("下载存储文件被拒绝，url={}，bizType={}，bizId={}，reason={}", url, bizType, bizId, e.getMessage());
+            response.setStatus(HttpStatus.FORBIDDEN);
+        }
         catch (Exception e)
         {
             // 下载异常写日志并返回 500，前端下载工具会按失败处理
-            log.error("下载存储文件失败，url={}", url, e);
+            log.error("下载存储文件失败，url={}，bizType={}，bizId={}", url, bizType, bizId, e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
-     * 将文件信息转换为通用接口返回项
+     * 通过文件ID预览文件
+     * <p>
+     * 公开文件允许匿名访问，私有文件必须携带登录令牌并通过通用下载规则
      *
-     * @param fileInfo X File Storage 文件信息
-     * @param fallbackOriginalFilename 原始文件名兜底值
-     * @return 文件返回项
+     * @param fileId 文件ID
+     * @param thumbnail true 表示预览缩略图
+     * @param response 响应对象
      */
-    private Map<String, Object> toFileItem(FileInfo fileInfo, String fallbackOriginalFilename)
+    @GetMapping("/file/preview/{fileId}")
+    public void previewStorageFile(@PathVariable Long fileId,
+            @RequestParam(value = "thumbnail", defaultValue = "false") Boolean thumbnail,
+            @RequestParam(value = "token", required = false) String accessToken, HttpServletResponse response)
     {
-        // 使用有序 Map 保持返回字段顺序稳定，便于前端联调和接口排查
-        Map<String, Object> fileItem = new LinkedHashMap<String, Object>();
-        if (fileInfo == null)
-        {
-            return fileItem;
-        }
-        // 远程 URL 是前端保存和展示当前文件的主地址
-        String url = fileInfo.getUrl();
-        fileItem.put("url", url);
-        fileItem.put("fileName", url);
-        fileItem.put("newFileName", FileUtils.getName(url));
-        fileItem.put("originalFilename",
-                StringUtils.isNotBlank(fileInfo.getOriginalFilename()) ? fileInfo.getOriginalFilename() : fallbackOriginalFilename);
-        fileItem.put("platform", fileInfo.getPlatform());
-        fileItem.put("uploadId", fileInfo.getUploadId());
-        fileItem.put("uploadStatus", fileInfo.getUploadStatus());
-        fileItem.put("thUrl", fileInfo.getThUrl());
-        fileItem.put("thFileName", fileInfo.getThUrl());
-        fileItem.put("thNewFileName", FileUtils.getName(fileInfo.getThUrl()));
-        fileItem.put("size", fileInfo.getSize());
-        fileItem.put("thSize", fileInfo.getThSize());
-        fileItem.put("contentType", fileInfo.getContentType());
-        return fileItem;
+        // 公共预览入口统一通过 fileId 读取文件，私有业务文件必须带业务接口签发的短期 token
+        writeStorageFile(fileId, Boolean.TRUE.equals(thumbnail), false, accessToken, response);
     }
 
     /**
-     * 将分片列表转换为接口返回项
+     * 通过文件ID下载文件
+     * <p>
+     * 公开文件允许匿名下载，私有文件必须携带登录令牌并通过通用下载规则
+     *
+     * @param fileId 文件ID
+     * @param response 响应对象
+     */
+    @RequestMapping(value = "/file/download/{fileId}", method = { RequestMethod.GET, RequestMethod.POST })
+    public void downloadStorageFile(@PathVariable Long fileId,
+            @RequestParam(value = "token", required = false) String accessToken, HttpServletResponse response)
+    {
+        // 公共下载入口统一输出文件流，私有业务文件必须带业务接口签发的短期 token
+        writeStorageFile(fileId, false, true, accessToken, response);
+    }
+
+    /**
+     * 查询文件回显信息
+     *
+     * @param fileId 文件ID
+     * @return 文件回显 DTO
+     */
+    @GetMapping("/file/info/{fileId}")
+    public AjaxResult getStorageFileInfo(@PathVariable Long fileId,
+            @RequestParam(value = "token", required = false) String accessToken)
+    {
+        // 业务表只保存 fileId 时，前端回显需要通过文件表反查 originalFilename、previewUrl 和 downloadUrl
+        SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
+        if (storageFile == null)
+        {
+            return AjaxResult.error("文件记录不存在");
+        }
+        checkStorageInfoAllowed(storageFile, accessToken);
+        return AjaxResult.success(buildStorageFileRespDTO(storageFile));
+    }
+
+    /**
+     * 批量查询文件回显信息
+     *
+     * @param fileIds 逗号分隔的文件ID，例如 70,73,74,75
+     * @return 文件回显 DTO 列表
+     */
+    @GetMapping("/file/listByIds")
+    public AjaxResult listStorageFileByIds(@RequestParam("fileIds") String fileIds,
+            @RequestParam(value = "token", required = false) String accessToken)
+    {
+        // 多文件字段保存逗号分隔 fileId 时，前端通过一次请求获取所有文件名和访问地址
+        List<Long> idList = parseFileIds(fileIds);
+        List<SysStorageFile> storageFiles = storageFileService.selectStorageFileByIds(idList);
+        Map<Long, SysStorageFile> storageFileMap = new LinkedHashMap<Long, SysStorageFile>();
+        for (SysStorageFile storageFile : storageFiles)
+        {
+            // 查询结果转成 Map，后续按入参顺序重新组装，保证前端回显顺序不乱
+            storageFileMap.put(storageFile.getFileId(), storageFile);
+        }
+        List<StorageFileUploadRespDTO> fileList = new ArrayList<StorageFileUploadRespDTO>();
+        for (Long fileId : idList)
+        {
+            SysStorageFile storageFile = storageFileMap.get(fileId);
+            if (storageFile != null)
+            {
+                checkStorageInfoAllowed(storageFile, accessToken);
+                fileList.add(buildStorageFileRespDTO(storageFile));
+            }
+        }
+        return AjaxResult.success(fileList);
+    }
+
+    /**
+     * 将分片列表转换为接口返回 DTO 列表
      *
      * @param filePartInfos X File Storage 分片列表
-     * @return 分片返回项列表
+     * @return 分片返回 DTO 列表
      */
-    private List<Map<String, Object>> toFilePartList(List<FilePartInfo> filePartInfos)
+    private List<StorageFilePartRespDTO> toFilePartList(List<FilePartInfo> filePartInfos)
     {
         // 空分片列表返回空数组，前端无需做 null 判断
-        List<Map<String, Object>> partList = new ArrayList<Map<String, Object>>();
+        List<StorageFilePartRespDTO> partList = new ArrayList<StorageFilePartRespDTO>();
         if (filePartInfos == null)
         {
             return partList;
         }
         for (FilePartInfo filePartInfo : filePartInfos)
         {
-            // 每个分片转换为稳定结构后返回
-            partList.add(toFilePartItem(filePartInfo));
+            // 每个分片转换为稳定 DTO 后返回
+            partList.add(StorageFilePartRespDTO.from(filePartInfo));
         }
         return partList;
     }
 
     /**
-     * 将分片信息转换为接口返回项
+     * 校验当前登录用户是否允许下载存储文件
      *
-     * @param filePartInfo X File Storage 分片信息
-     * @return 分片返回项
+     * @param storageFile 存储文件记录
+     * @param bizType 请求声明的业务类型
+     * @param bizId 请求声明的业务ID
      */
-    private Map<String, Object> toFilePartItem(FilePartInfo filePartInfo)
+    private void checkStorageDownloadAllowed(SysStorageFile storageFile, String bizType, String bizId, String accessToken)
     {
-        // 使用有序 Map 保持返回字段顺序稳定
-        Map<String, Object> partItem = new LinkedHashMap<String, Object>();
-        if (filePartInfo == null)
+        if (storageFile == null)
         {
-            return partItem;
+            throw new ServiceException("文件记录不存在");
         }
-        partItem.put("id", filePartInfo.getId());
-        partItem.put("platform", filePartInfo.getPlatform());
-        partItem.put("uploadId", filePartInfo.getUploadId());
-        partItem.put("partNumber", filePartInfo.getPartNumber());
-        partItem.put("partSize", filePartInfo.getPartSize());
-        partItem.put("etag", filePartInfo.getETag());
-        partItem.put("hashInfo", filePartInfo.getHashInfo());
-        partItem.put("createTime", filePartInfo.getCreateTime());
-        partItem.put("lastModified", filePartInfo.getLastModified());
-        return partItem;
+        // 待删除和已删除文件不允许继续通过历史授权访问
+        if (StorageFileStatus.isInvalid(storageFile.getFileStatus()))
+        {
+            throw new ServiceException("文件已失效");
+        }
+        // 公开文件本身可以走静态资源访问，登录下载入口也允许读取
+        if (isPublicStorageFile(storageFile))
+        {
+            return;
+        }
+        // 私有文件只要携带了有效的短期访问 token，就说明业务接口已经完成业务权限校验
+        if (storageFileAccessTokenService.verifyToken(storageFile.getFileId(), accessToken))
+        {
+            return;
+        }
+        // 已绑定业务的普通私有文件不能继续按登录用户兜底，否则会绕开业务模块自己的菜单权限和数据权限
+        if (StringUtils.isNotBlank(storageFile.getBizType())
+                && !StorageFileConstants.BIZ_TYPE_AVATAR.equals(storageFile.getBizType()))
+        {
+            throw new ServiceException("业务私有文件缺少访问授权");
+        }
+        // 超级管理员和拥有统一下载权限的用户只兜底处理非业务绑定文件，业务私有文件请走业务接口签发 token
+        if (hasStorageDownloadPermission())
+        {
+            return;
+        }
+        String username = SecurityUtils.getUsername();
+        // 临时文件或未绑定业务文件只允许上传人自己下载，已绑定业务后要继续走业务身份校验
+        if (StringUtils.isBlank(storageFile.getBizType()) && StringUtils.isNotBlank(storageFile.getCreateBy())
+                && storageFile.getCreateBy().equals(username))
+        {
+            return;
+        }
+        // 头像属于用户自身资料，当前用户只能下载自己的头像文件
+        if (StorageFileConstants.BIZ_TYPE_AVATAR.equals(storageFile.getBizType())
+                && String.valueOf(SecurityUtils.getUserId()).equals(storageFile.getBizId()))
+        {
+            return;
+        }
+        // 走到这里说明既不是公开文件，也不是本人临时文件、本人头像或已绑定业务文件
+        throw new ServiceException("没有权限访问文件");
+    }
+
+    /**
+     * 判断文件是否是公开访问文件
+     *
+     * @param storageFile 存储文件记录
+     * @return true 表示公开文件
+     */
+    private boolean isPublicStorageFile(SysStorageFile storageFile)
+    {
+        // 访问级别以文件记录表 access 字段为准，不再在下载鉴权时解析存储路径
+        return StorageFileAccess.isPublic(storageFile.getAccess());
+    }
+
+    /**
+     * 判断文件是否是私有访问文件
+     *
+     * @param storageFile 存储文件记录
+     * @return true 表示私有文件
+     */
+    private boolean isPrivateStorageFile(SysStorageFile storageFile)
+    {
+        // 私有文件必须通过后端代理和短期 token 访问，不能把真实对象存储地址暴露给前端
+        return storageFile != null && StorageFileAccess.isPrivate(storageFile.getAccess());
+    }
+
+    /**
+     * 校验当前请求是否允许查看文件回显信息
+     *
+     * @param storageFile 存储文件记录
+     * @param accessToken 文件短期访问 token
+     */
+    private void checkStorageInfoAllowed(SysStorageFile storageFile, String accessToken)
+    {
+        // 文件信息和文件内容使用同一套私有访问边界，避免任意登录用户按 fileId 枚举私有文件名
+        checkStorageDownloadAllowed(storageFile, null, null, accessToken);
+    }
+
+    /**
+     * 判断当前用户是否拥有存储文件管理下载权限
+     *
+     * @return true 表示拥有管理下载权限
+     */
+    private boolean hasStorageDownloadPermission()
+    {
+        try
+        {
+            // 文件预览下载入口允许匿名进入，未登录时 SecurityUtils 会抛出未授权异常，这里按无权限处理
+            return SecurityUtils.isAdmin() || SecurityUtils.hasPermi(StorageFileConstants.PERMISSION_STORAGE_DOWNLOAD);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    /**
+     * 构造上传返回 DTO
+     *
+     * @param fileInfo X File Storage 文件信息
+     * @param uploadScene 上传场景编码
+     * @param originalFilename 原始文件名兜底值
+     * @return 上传结果 DTO
+     */
+    private StorageFileUploadRespDTO buildUploadRespDTO(FileInfo fileInfo, String uploadScene, String originalFilename)
+    {
+        StorageFileUploadRespDTO resp = StorageFileUploadRespDTO.from(fileInfo, uploadScene, originalFilename);
+        if (fileInfo == null || StringUtils.isBlank(fileInfo.getUrl()))
+        {
+            return resp;
+        }
+        // 上传成功后 FileRecorder 已经写入文件表，这里按 URL 反查 fileId、access 和对象 Key
+        SysStorageFile storageFile = storageFileService.selectStorageFileByUrl(fileInfo.getUrl());
+        if (storageFile != null)
+        {
+            resp.setFileId(storageFile.getFileId());
+            resp.setAccess(storageFile.getAccess());
+            resp.setObjectKey(storageFile.getObjectKey());
+            resp.setThObjectKey(storageFile.getThObjectKey());
+            // previewUrl 是前端展示用地址，私有文件会被转换为后端代理地址
+            resp.setPreviewUrl(storageFileAccessUrlBuilder.buildPreviewUrl(storageFile));
+            // downloadUrl 是前端下载用地址，后续下载日志和权限控制都可以集中在代理入口
+            resp.setDownloadUrl(storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
+            // thPreviewUrl 是缩略图展示地址，未生成缩略图时返回 null
+            resp.setThPreviewUrl(storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
+            if (isPrivateStorageFile(storageFile))
+            {
+                // 上传接口返回的是临时文件，私有临时文件也需要短期 token 才能在保存业务前预览
+                String accessToken = storageFileAccessTokenService.issueUserBoundToken(storageFile.getFileId());
+                resp.setPreviewUrl(storageFileAccessTokenService.appendToken(resp.getPreviewUrl(), accessToken));
+                resp.setDownloadUrl(storageFileAccessTokenService.appendToken(resp.getDownloadUrl(), accessToken));
+                resp.setThPreviewUrl(storageFileAccessTokenService.appendToken(resp.getThPreviewUrl(), accessToken));
+            }
+            // 私有文件不向前端暴露真实存储 URL，兼容字段也统一返回代理预览地址
+            if (!storageFileAccessUrlBuilder.allowExposeRealUrl(storageFile))
+            {
+                resp.setUrl(resp.getPreviewUrl());
+                resp.setFileName(resp.getPreviewUrl());
+                resp.setThUrl(resp.getThPreviewUrl());
+                resp.setThFileName(resp.getThPreviewUrl());
+            }
+            else
+            {
+                // 公开直连模式下 previewUrl 与真实 URL 一致，保持若依原有前端使用习惯
+                resp.setUrl(resp.getPreviewUrl());
+                resp.setFileName(resp.getPreviewUrl());
+                resp.setThUrl(resp.getThPreviewUrl());
+                resp.setThFileName(resp.getThPreviewUrl());
+            }
+        }
+        return resp;
+    }
+
+    /**
+     * 解析逗号分隔的文件ID
+     *
+     * @param fileIds 逗号分隔的文件ID
+     * @return 文件ID列表
+     */
+    private List<Long> parseFileIds(String fileIds)
+    {
+        List<Long> idList = new ArrayList<Long>();
+        if (StringUtils.isBlank(fileIds))
+        {
+            return idList;
+        }
+        String[] values = fileIds.split(",");
+        for (String value : values)
+        {
+            if (StringUtils.isBlank(value))
+            {
+                continue;
+            }
+            try
+            {
+                idList.add(Long.valueOf(value.trim()));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ServiceException("文件ID格式不正确");
+            }
+        }
+        return idList;
+    }
+
+    /**
+     * 根据文件记录构造前端回显 DTO
+     *
+     * @param storageFile 文件记录
+     * @return 文件回显 DTO
+     */
+    private StorageFileUploadRespDTO buildStorageFileRespDTO(SysStorageFile storageFile)
+    {
+        StorageFileUploadRespDTO resp = new StorageFileUploadRespDTO();
+        if (storageFile == null)
+        {
+            return resp;
+        }
+        // fileId 是业务表关联文件资产和前端后续下载的稳定主键
+        resp.setFileId(storageFile.getFileId());
+        // 对外地址按 access-url-mode 生成，避免私有文件暴露真实对象存储地址
+        resp.setUrl(storageFileAccessUrlBuilder.buildPreviewUrl(storageFile));
+        resp.setPreviewUrl(resp.getUrl());
+        resp.setDownloadUrl(storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
+        resp.setObjectKey(storageFile.getObjectKey());
+        resp.setFileName(resp.getUrl());
+        resp.setNewFileName(storageFile.getFilename());
+        resp.setOriginalFilename(storageFile.getOriginalFilename());
+        resp.setPlatform(storageFile.getPlatform());
+        resp.setThUrl(storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
+        resp.setThPreviewUrl(resp.getThUrl());
+        resp.setThObjectKey(storageFile.getThObjectKey());
+        resp.setThFileName(resp.getThUrl());
+        resp.setThNewFileName(storageFile.getThFilename());
+        resp.setSize(storageFile.getSize());
+        resp.setThSize(storageFile.getThSize());
+        resp.setContentType(storageFile.getContentType());
+        resp.setAccess(storageFile.getAccess());
+        return resp;
+    }
+
+    /**
+     * 写出文件内容
+     *
+     * @param fileId 文件ID
+     * @param thumbnail true 表示写出缩略图
+     * @param attachment true 表示作为附件下载
+     * @param response 响应对象
+     */
+    private void writeStorageFile(Long fileId, boolean thumbnail, boolean attachment, String accessToken,
+            HttpServletResponse response)
+    {
+        SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
+        try
+        {
+            checkStorageDownloadAllowed(storageFile, null, null, accessToken);
+            FileInfo fileInfo = buildDownloadFileInfo(storageFile, thumbnail);
+            if (fileInfo == null)
+            {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                return;
+            }
+            String downloadName = StringUtils.isNotBlank(fileInfo.getOriginalFilename()) ? fileInfo.getOriginalFilename()
+                    : FileUtils.getName(fileInfo.getUrl());
+            response.setContentType(StringUtils.isNotBlank(fileInfo.getContentType()) ? fileInfo.getContentType()
+                    : MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            if (attachment)
+            {
+                // 下载入口设置附件响应头，预览入口则让浏览器按 Content-Type 尝试打开
+                FileUtils.setAttachmentResponseHeader(response, downloadName);
+            }
+            response.getOutputStream().write(xFileStorageUtils.downloadBytes(fileInfo));
+        }
+        catch (ServiceException e)
+        {
+            log.warn("访问存储文件被拒绝，fileId={}，thumbnail={}，attachment={}，reason={}", fileId, thumbnail, attachment,
+                    e.getMessage());
+            // ServiceException 可能只传业务提示不传错误码，默认按 403 访问拒绝处理
+            Integer code = e.getCode();
+            response.setStatus(code != null && code == HttpStatus.UNAUTHORIZED ? HttpServletResponse.SC_UNAUTHORIZED
+                    : HttpServletResponse.SC_FORBIDDEN);
+        }
+        catch (Exception e)
+        {
+            log.error("访问存储文件失败，fileId={}，thumbnail={}，attachment={}", fileId, thumbnail, attachment, e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * 构建下载用文件信息
+     *
+     * @param storageFile 文件记录
+     * @param thumbnail true 表示下载缩略图
+     * @return X File Storage 文件信息
+     */
+    private FileInfo buildDownloadFileInfo(SysStorageFile storageFile, boolean thumbnail)
+    {
+        FileInfo fileInfo = storageFileService.toFileInfo(storageFile);
+        if (fileInfo == null || !thumbnail || StringUtils.isBlank(storageFile.getThUrl()))
+        {
+            return fileInfo;
+        }
+        // 缩略图和原图在同一平台同一路径下，只切换 URL、文件名、大小和内容类型
+        fileInfo.setUrl(storageFile.getThUrl());
+        fileInfo.setFilename(storageFile.getThFilename());
+        fileInfo.setSize(storageFile.getThSize());
+        fileInfo.setContentType(storageFile.getThContentType());
+        return fileInfo;
+    }
+
+    /**
+     * 补偿删除批量上传中已经成功的文件
+     *
+     * @param uploadedUrls 已经上传成功的文件 URL
+     */
+    private void compensateUploadedFiles(List<String> uploadedUrls)
+    {
+        if (uploadedUrls == null || uploadedUrls.isEmpty())
+        {
+            return;
+        }
+        for (String uploadedUrl : uploadedUrls)
+        {
+            try
+            {
+                // 批量上传只要中途失败，就立即删除此前已经上传成功的文件，避免残留孤儿文件
+                xFileStorageUtils.delete(uploadedUrl);
+            }
+            catch (Exception ex)
+            {
+                log.warn("批量上传失败后补偿删除文件失败，url={}", uploadedUrl, ex);
+            }
+        }
     }
 
 }
