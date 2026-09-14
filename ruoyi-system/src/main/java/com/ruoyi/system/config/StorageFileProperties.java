@@ -17,14 +17,78 @@ import com.ruoyi.common.utils.StringUtils;
 @ConfigurationProperties(prefix = "ruoyi.storage-file")
 public class StorageFileProperties
 {
-    /** 临时文件过期小时数 */
+    /**
+     * 直连存储地址访问模式
+     */
+    public static final String ACCESS_URL_MODE_DIRECT = "direct";
+
+    /**
+     * 文件域名访问模式
+     */
+    public static final String ACCESS_URL_MODE_DOMAIN = "domain";
+
+    /**
+     * 后端代理访问模式
+     */
+    public static final String ACCESS_URL_MODE_BACKEND = "backend";
+
+    /**
+     * 对外访问地址模式
+     * <p>
+     * direct 直接返回存储平台地址，domain 返回 publicDomain + objectKey，backend 返回后端代理地址
+     */
+    private String accessUrlMode = ACCESS_URL_MODE_DIRECT;
+
+    /**
+     * 公开文件访问域名
+     * <p>
+     * accessUrlMode 为 domain 时使用，例如 https://file.example.com/
+     */
+    private String publicDomain;
+
+    /**
+     * 临时文件过期小时数
+     */
     private int tempExpireHours = 24;
 
-    /** 默认待删除延迟小时数 */
+    /**
+     * 私有文件访问授权有效秒数
+     */
+    private int accessTokenExpireSeconds = 300;
+
+    /**
+
+     * 默认待删除延迟小时数
+
+     */
     private int defaultDeleteDelayHours = 24;
 
-    /** 业务类型对应的待删除延迟小时数 */
+    /**
+
+     * 业务类型对应的待删除延迟小时数
+
+     */
     private Map<String, Integer> deleteDelayHours = new HashMap<>();
+
+    public String getAccessUrlMode()
+    {
+        return accessUrlMode;
+    }
+
+    public void setAccessUrlMode(String accessUrlMode)
+    {
+        this.accessUrlMode = accessUrlMode;
+    }
+
+    public String getPublicDomain()
+    {
+        return publicDomain;
+    }
+
+    public void setPublicDomain(String publicDomain)
+    {
+        this.publicDomain = publicDomain;
+    }
 
     public int getTempExpireHours()
     {
@@ -34,6 +98,27 @@ public class StorageFileProperties
     public void setTempExpireHours(int tempExpireHours)
     {
         this.tempExpireHours = tempExpireHours;
+    }
+
+    public int getAccessTokenExpireSeconds()
+    {
+        return accessTokenExpireSeconds;
+    }
+
+    public void setAccessTokenExpireSeconds(int accessTokenExpireSeconds)
+    {
+        this.accessTokenExpireSeconds = accessTokenExpireSeconds;
+    }
+
+    /**
+     * 获取有效的私有文件访问授权有效秒数
+     *
+     * @return 私有文件访问授权有效秒数
+     */
+    public int getEffectiveAccessTokenExpireSeconds()
+    {
+        // 授权时间配置小于等于 0 时使用 300 秒兜底，避免误配置导致授权永久有效
+        return accessTokenExpireSeconds > 0 ? accessTokenExpireSeconds : 300;
     }
 
     public int getDefaultDeleteDelayHours()

@@ -6,6 +6,9 @@ create table sys_storage_file (
   file_id           bigint(20)       not null auto_increment    comment '文件ID',
   storage_id        varchar(64)      default null               comment 'X File Storage内部文件ID',
   url               varchar(1000)    not null                   comment '原图访问地址',
+  url_hash          char(64)         not null                   comment '原图访问地址SHA-256哈希',
+  object_key        varchar(1000)    default null               comment '原图存储对象Key',
+  access            varchar(16)      default 'private'          comment '访问级别（public公开 private私有）',
   size              bigint(20)       default 0                  comment '原图大小，单位字节',
   filename          varchar(255)     default ''                 comment '原图文件名',
   original_filename varchar(255)     default ''                 comment '原始文件名',
@@ -16,6 +19,7 @@ create table sys_storage_file (
   platform          varchar(64)      default ''                 comment '存储平台',
   th_url            varchar(1000)    default null               comment '缩略图访问地址',
   th_filename       varchar(255)     default ''                 comment '缩略图文件名',
+  th_object_key     varchar(1000)    default null               comment '缩略图存储对象Key',
   th_size           bigint(20)       default 0                  comment '缩略图大小，单位字节',
   th_content_type   varchar(128)     default ''                 comment '缩略图Content-Type',
   object_id         varchar(64)      default ''                 comment 'X File Storage关联对象ID',
@@ -40,9 +44,10 @@ create table sys_storage_file (
   update_time       datetime                                   comment '更新时间',
   remark            varchar(500)     default null               comment '备注',
   primary key (file_id),
-  unique key uk_sys_storage_file_url (url(191)),
+  unique key uk_sys_storage_file_url_hash (url_hash),
   key idx_sys_storage_file_status_time (file_status, create_time),
-  key idx_sys_storage_file_biz (biz_type, biz_id)
+  key idx_sys_storage_file_biz (biz_type, biz_id),
+  key idx_sys_storage_file_access (access)
 ) engine=innodb auto_increment=1 comment = '存储文件记录表';
 
 -- ----------------------------

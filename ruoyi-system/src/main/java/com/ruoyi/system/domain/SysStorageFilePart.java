@@ -16,31 +16,67 @@ public class SysStorageFilePart extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
 
-    /** 分片ID */
+    /**
+
+     * 分片ID
+
+     */
     private Long partId;
 
-    /** X File Storage 内部分片ID，由框架生成或由存储平台返回 */
+    /**
+
+     * X File Storage 内部分片ID，由框架生成或由存储平台返回
+
+     */
     private String storageId;
 
-    /** 存储平台 */
+    /**
+
+     * 存储平台
+
+     */
     private String platform;
 
-    /** 分片上传ID */
+    /**
+
+     * 分片上传ID
+
+     */
     private String uploadId;
 
-    /** 分片编号 */
+    /**
+
+     * 分片编号
+
+     */
     private Integer partNumber;
 
-    /** 分片大小，单位字节 */
+    /**
+
+     * 分片大小，单位字节
+
+     */
     private Long partSize;
 
-    /** 分片ETag，存储平台返回的分片唯一校验标识 */
+    /**
+
+     * 分片ETag，存储平台返回的分片唯一校验标识
+
+     */
     private String etag;
 
-    /** 分片哈希信息JSON，例如 MD5、SHA1、SHA256 等摘要结果 */
+    /**
+
+     * 分片哈希信息JSON，例如 MD5、SHA1、SHA256 等摘要结果
+
+     */
     private String hashInfo;
 
-    /** 分片最后修改时间 */
+    /**
+
+     * 分片最后修改时间
+
+     */
     private LocalDateTime lastModified;
 
     public Long getPartId()

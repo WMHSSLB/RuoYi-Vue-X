@@ -19,7 +19,9 @@ import com.ruoyi.common.utils.StringUtils;
 @ConfigurationProperties(prefix = "ruoyi")
 public class UploadSceneProperties
 {
-    /** 场景配置集合 */
+    /**
+     * 场景配置集合
+     */
     private Map<String, Scene> uploadScenes = new HashMap<String, Scene>();
 
     public Map<String, Scene> getUploadScenes()
@@ -54,25 +56,49 @@ public class UploadSceneProperties
      */
     public static class Scene
     {
-        /** 最大上传大小 */
+        /**
+         * 最大上传大小
+         */
         private DataSize maxSize;
 
-        /** 允许上传的扩展名 */
+        /**
+         * 允许上传的扩展名
+         */
         private List<String> allowedExtension;
 
-        /** 是否生成缩略图 */
+        /**
+         * 是否生成缩略图
+         */
         private Boolean thumbnail;
 
-        /** 缩略图宽度 */
+        /**
+         * 缩略图宽度
+         */
         private Integer thumbnailWidth;
 
-        /** 缩略图高度 */
+        /**
+         * 缩略图高度
+         */
         private Integer thumbnailHeight;
 
-        /** 访问级别，public 表示公开访问，private 表示私有访问 */
+        /**
+         * 缩略图文件名后缀，配置后覆盖全局 thumbnail-suffix
+         */
+        private String thumbnailSuffix;
+
+        /**
+         * 单次批量上传最大文件数量，配置后覆盖全局 max-batch-upload-count
+         */
+        private Integer maxBatchUploadCount;
+
+        /**
+         * 访问级别，public 表示公开访问，private 表示私有访问
+         */
         private String access;
 
-        /** 场景路径前缀，例如 avatar、image、contract */
+        /**
+         * 场景路径前缀，例如 avatar、image、contract
+         */
         private String pathPrefix;
 
         public DataSize getMaxSize()
@@ -123,6 +149,26 @@ public class UploadSceneProperties
         public void setThumbnailHeight(Integer thumbnailHeight)
         {
             this.thumbnailHeight = thumbnailHeight;
+        }
+
+        public String getThumbnailSuffix()
+        {
+            return thumbnailSuffix;
+        }
+
+        public void setThumbnailSuffix(String thumbnailSuffix)
+        {
+            this.thumbnailSuffix = thumbnailSuffix;
+        }
+
+        public Integer getMaxBatchUploadCount()
+        {
+            return maxBatchUploadCount;
+        }
+
+        public void setMaxBatchUploadCount(Integer maxBatchUploadCount)
+        {
+            this.maxBatchUploadCount = maxBatchUploadCount;
         }
 
         public String getAccess()
