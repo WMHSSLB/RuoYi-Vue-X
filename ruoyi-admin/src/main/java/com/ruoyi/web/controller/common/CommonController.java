@@ -1,9 +1,7 @@
 package com.ruoyi.web.controller.common;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.dromara.x.file.storage.core.FileInfo;
@@ -413,60 +411,6 @@ public class CommonController
     }
 
     /**
-     * 下载 X File Storage 管理的文件
-     * <p>
-     * 私有文件不能只凭 URL 下载，通用入口只处理公开文件、本人临时文件、本人头像和管理员兜底下载
-     *
-     * @param url X File Storage 返回的文件 URL
-     * @param bizType 可选业务类型，仅用于记录排查和识别误用入口
-     * @param bizId 可选业务 ID，仅用于记录排查和识别误用入口
-     * @param response 响应对象
-     */
-    @PostMapping("/storage/download")
-    @Deprecated
-    public void storageDownload(@RequestParam("url") String url,
-            @RequestParam(value = "bizType", required = false) String bizType,
-            @RequestParam(value = "bizId", required = false) String bizId,
-            @RequestParam(value = "token", required = false) String accessToken, HttpServletResponse response)
-    {
-        // 兼容旧的 URL 下载入口，真实鉴权和响应流写出统一交给文件访问服务
-        try
-        {
-            // 先查数据库文件记录，私有下载必须基于记录里的业务归属做鉴权
-            SysStorageFile storageFile = storageFileService.selectStorageFileByUrl(url);
-            checkStorageDownloadAllowed(storageFile, bizType, bizId, accessToken);
-            // 数据库记录还原为 FileInfo，框架才能定位具体平台和对象路径
-            FileInfo fileInfo = storageFileService.toFileInfo(storageFile);
-            if (fileInfo == null)
-            {
-                throw new ServiceException("文件记录不存在");
-            }
-            // 原始文件名优先用于下载文件名，缺失时使用 URL 最后一段兜底
-            String downloadName = StringUtils.isNotBlank(fileInfo.getOriginalFilename()) ? fileInfo.getOriginalFilename()
-                    : FileUtils.getName(fileInfo.getUrl());
-            // Content-Type 有值时按真实类型返回，便于浏览器识别预览或下载
-            response.setContentType(StringUtils.isNotBlank(fileInfo.getContentType()) ? fileInfo.getContentType()
-                    : MediaType.APPLICATION_OCTET_STREAM_VALUE);
-            // 设置附件响应头，中文文件名由 FileUtils 统一编码
-            FileUtils.setAttachmentResponseHeader(response, downloadName);
-            // 从实际存储平台下载文件内容并写入响应流
-            response.getOutputStream().write(xFileStorageUtils.downloadBytes(fileInfo));
-        }
-        catch (ServiceException e)
-        {
-            // 权限或业务归属校验失败返回 403，避免私有文件 URL 泄露后被同系统用户下载
-            log.warn("下载存储文件被拒绝，url={}，bizType={}，bizId={}，reason={}", url, bizType, bizId, e.getMessage());
-            response.setStatus(HttpStatus.FORBIDDEN);
-        }
-        catch (Exception e)
-        {
-            // 下载异常写日志并返回 500，前端下载工具会按失败处理
-            log.error("下载存储文件失败，url={}，bizType={}，bizId={}", url, bizType, bizId, e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
      * 通过文件ID预览文件
      * <p>
      * 公开文件允许匿名访问，私有文件必须携带登录令牌并通过通用下载规则
@@ -498,58 +442,6 @@ public class CommonController
     {
         // 公共下载入口统一输出文件流，私有业务文件必须带业务接口签发的短期 token
         writeStorageFile(fileId, false, true, accessToken, response);
-    }
-
-    /**
-     * 查询文件回显信息
-     *
-     * @param fileId 文件ID
-     * @return 文件回显 DTO
-     */
-    @GetMapping("/file/info/{fileId}")
-    public AjaxResult getStorageFileInfo(@PathVariable Long fileId,
-            @RequestParam(value = "token", required = false) String accessToken)
-    {
-        // 业务表只保存 fileId 时，前端回显需要通过文件表反查 originalFilename、previewUrl 和 downloadUrl
-        SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
-        if (storageFile == null)
-        {
-            return AjaxResult.error("文件记录不存在");
-        }
-        checkStorageInfoAllowed(storageFile, accessToken);
-        return AjaxResult.success(buildStorageFileRespDTO(storageFile));
-    }
-
-    /**
-     * 批量查询文件回显信息
-     *
-     * @param fileIds 逗号分隔的文件ID，例如 70,73,74,75
-     * @return 文件回显 DTO 列表
-     */
-    @GetMapping("/file/listByIds")
-    public AjaxResult listStorageFileByIds(@RequestParam("fileIds") String fileIds,
-            @RequestParam(value = "token", required = false) String accessToken)
-    {
-        // 多文件字段保存逗号分隔 fileId 时，前端通过一次请求获取所有文件名和访问地址
-        List<Long> idList = parseFileIds(fileIds);
-        List<SysStorageFile> storageFiles = storageFileService.selectStorageFileByIds(idList);
-        Map<Long, SysStorageFile> storageFileMap = new LinkedHashMap<Long, SysStorageFile>();
-        for (SysStorageFile storageFile : storageFiles)
-        {
-            // 查询结果转成 Map，后续按入参顺序重新组装，保证前端回显顺序不乱
-            storageFileMap.put(storageFile.getFileId(), storageFile);
-        }
-        List<StorageFileUploadRespDTO> fileList = new ArrayList<StorageFileUploadRespDTO>();
-        for (Long fileId : idList)
-        {
-            SysStorageFile storageFile = storageFileMap.get(fileId);
-            if (storageFile != null)
-            {
-                checkStorageInfoAllowed(storageFile, accessToken);
-                fileList.add(buildStorageFileRespDTO(storageFile));
-            }
-        }
-        return AjaxResult.success(fileList);
     }
 
     /**
@@ -655,18 +547,6 @@ public class CommonController
     }
 
     /**
-     * 校验当前请求是否允许查看文件回显信息
-     *
-     * @param storageFile 存储文件记录
-     * @param accessToken 文件短期访问 token
-     */
-    private void checkStorageInfoAllowed(SysStorageFile storageFile, String accessToken)
-    {
-        // 文件信息和文件内容使用同一套私有访问边界，避免任意登录用户按 fileId 枚举私有文件名
-        checkStorageDownloadAllowed(storageFile, null, null, accessToken);
-    }
-
-    /**
      * 判断当前用户是否拥有存储文件管理下载权限
      *
      * @return true 表示拥有管理下载权限
@@ -738,74 +618,6 @@ public class CommonController
                 resp.setThFileName(resp.getThPreviewUrl());
             }
         }
-        return resp;
-    }
-
-    /**
-     * 解析逗号分隔的文件ID
-     *
-     * @param fileIds 逗号分隔的文件ID
-     * @return 文件ID列表
-     */
-    private List<Long> parseFileIds(String fileIds)
-    {
-        List<Long> idList = new ArrayList<Long>();
-        if (StringUtils.isBlank(fileIds))
-        {
-            return idList;
-        }
-        String[] values = fileIds.split(",");
-        for (String value : values)
-        {
-            if (StringUtils.isBlank(value))
-            {
-                continue;
-            }
-            try
-            {
-                idList.add(Long.valueOf(value.trim()));
-            }
-            catch (NumberFormatException e)
-            {
-                throw new ServiceException("文件ID格式不正确");
-            }
-        }
-        return idList;
-    }
-
-    /**
-     * 根据文件记录构造前端回显 DTO
-     *
-     * @param storageFile 文件记录
-     * @return 文件回显 DTO
-     */
-    private StorageFileUploadRespDTO buildStorageFileRespDTO(SysStorageFile storageFile)
-    {
-        StorageFileUploadRespDTO resp = new StorageFileUploadRespDTO();
-        if (storageFile == null)
-        {
-            return resp;
-        }
-        // fileId 是业务表关联文件资产和前端后续下载的稳定主键
-        resp.setFileId(storageFile.getFileId());
-        // 对外地址按 access-url-mode 生成，避免私有文件暴露真实对象存储地址
-        resp.setUrl(storageFileAccessUrlBuilder.buildPreviewUrl(storageFile));
-        resp.setPreviewUrl(resp.getUrl());
-        resp.setDownloadUrl(storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
-        resp.setObjectKey(storageFile.getObjectKey());
-        resp.setFileName(resp.getUrl());
-        resp.setNewFileName(storageFile.getFilename());
-        resp.setOriginalFilename(storageFile.getOriginalFilename());
-        resp.setPlatform(storageFile.getPlatform());
-        resp.setThUrl(storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
-        resp.setThPreviewUrl(resp.getThUrl());
-        resp.setThObjectKey(storageFile.getThObjectKey());
-        resp.setThFileName(resp.getThUrl());
-        resp.setThNewFileName(storageFile.getThFilename());
-        resp.setSize(storageFile.getSize());
-        resp.setThSize(storageFile.getThSize());
-        resp.setContentType(storageFile.getContentType());
-        resp.setAccess(storageFile.getAccess());
         return resp;
     }
 

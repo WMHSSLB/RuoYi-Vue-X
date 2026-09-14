@@ -79,30 +79,6 @@ public interface SysStorageFileMapper
     public int deleteStorageFileByUrl(@Param("urlHash") String urlHash, @Param("url") String url);
 
     /**
-     * 绑定文件到业务
-     *
-     * @param url 文件访问地址
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 结果
-     */
-    public int bindStorageFile(@Param("urlHash") String urlHash, @Param("url") String url, @Param("bizType") String bizType,
-            @Param("bizId") String bizId, @Param("updateBy") String updateBy);
-
-    /**
-     * 批量绑定文件到业务
-     *
-     * @param files 文件定位信息集合
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 结果
-     */
-    public int bindStorageFiles(@Param("files") List<SysStorageFile> files, @Param("bizType") String bizType,
-            @Param("bizId") String bizId, @Param("updateBy") String updateBy);
-
-    /**
      * 根据文件ID集合批量绑定文件到业务
      *
      * @param fileIds 文件ID集合

@@ -115,7 +115,6 @@ public class StorageFileUploadRespDTO
     private String contentType;
 
     /**
-     * 访问级别，public 表示公开访问，private 表示需要后端鉴权下载
      * 访问级别，public 表示公开访问，private 表示需要后端鉴权访问
      */
     private String access;

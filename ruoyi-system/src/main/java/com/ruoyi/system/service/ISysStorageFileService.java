@@ -88,30 +88,6 @@ public interface ISysStorageFileService extends FileRecorder
     public List<StorageFileUploadRespDTO> buildUserBoundAuthorizedFileListByIds(Collection<Long> fileIds);
 
     /**
-     * 绑定文件到业务
-     *
-     * @param url 文件访问地址
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Deprecated
-    public int bindStorageFile(String url, String bizType, String bizId, String updateBy);
-
-    /**
-     * 批量绑定文件到业务
-     *
-     * @param urls 文件访问地址集合
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Deprecated
-    public int bindStorageFiles(Collection<String> urls, String bizType, String bizId, String updateBy);
-
-    /**
      * 根据文件ID集合批量绑定文件到业务
      *
      * @param fileIds 文件ID集合
@@ -121,22 +97,6 @@ public interface ISysStorageFileService extends FileRecorder
      * @return 影响行数
      */
     public int bindStorageFilesByIds(Collection<Long> fileIds, String bizType, String bizId, String updateBy);
-
-    /**
-     * 同步业务文件集合
-     * <p>
-     * 新文件会绑定到当前业务，旧文件中不再出现的文件会标记待删除
-     *
-     * @param newUrls 当前业务保存后的文件地址集合
-     * @param oldUrls 修改前业务已关联的文件地址集合
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Deprecated
-    public int syncBizStorageFiles(Collection<String> newUrls, Collection<String> oldUrls, String bizType, String bizId,
-            String updateBy);
 
     /**
      * 根据文件ID集合同步业务文件集合
@@ -152,19 +112,6 @@ public interface ISysStorageFileService extends FileRecorder
      */
     public int syncBizStorageFilesByIds(Collection<Long> newFileIds, Collection<Long> oldFileIds, String bizType,
             String bizId, String updateBy);
-
-    /**
-     * 获取已通过业务权限校验的业务文件信息
-     * <p>
-     * 调用方需要先完成菜单权限和数据权限校验，本方法只校验文件是否属于指定业务
-     *
-     * @param url 文件访问地址
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @return X File Storage 文件信息
-     */
-    @Deprecated
-    public FileInfo getBusinessFileInfo(String url, String bizType, String bizId);
 
     /**
      * 校验分片上传会话是否属于当前登录用户
@@ -202,19 +149,6 @@ public interface ISysStorageFileService extends FileRecorder
      * @return 影响行数
      */
     public int markStorageFilesWaitDeleteByIds(Collection<Long> fileIds, String bizType, String bizId, String updateBy);
-
-    /**
-     * 根据文件ID集合批量标记文件为待删除
-     * <p>
-     * 兼容旧调用，新业务应传入 bizId 使用严格业务边界
-     *
-     * @param fileIds 文件ID集合
-     * @param bizType 业务类型
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Deprecated
-    public int markStorageFilesWaitDeleteByIds(Collection<Long> fileIds, String bizType, String updateBy);
 
     /**
      * 根据业务类型和业务ID批量标记文件为待删除

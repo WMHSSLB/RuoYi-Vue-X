@@ -327,54 +327,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     }
 
     /**
-     * 绑定文件到业务
-     *
-     * @param url 文件访问地址
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 结果
-     */
-    @Override
-    @Deprecated
-    public int bindStorageFile(String url, String bizType, String bizId, String updateBy)
-    {
-        // 业务保存成功后把临时文件转为已使用，避免被临时文件清理任务误删
-        if (StringUtils.isBlank(url))
-        {
-            return 0;
-        }
-        return storageFileMapper.bindStorageFile(sha256Hex(url), url, bizType, bizId, updateBy);
-    }
-
-    /**
-     * 批量绑定文件到业务
-     *
-     * @param urls 文件访问地址集合
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Override
-    @Deprecated
-    public int bindStorageFiles(Collection<String> urls, String bizType, String bizId, String updateBy)
-    {
-        // 没有文件地址时无需处理，便于业务保存空附件
-        if (urls == null || urls.isEmpty())
-        {
-            return 0;
-        }
-        // 将 URL 集合转换为 url_hash + url 精确定位信息，交给 Mapper 一次批量更新
-        List<SysStorageFile> files = buildStorageFileKeys(urls);
-        if (files.isEmpty())
-        {
-            return 0;
-        }
-        return storageFileMapper.bindStorageFiles(files, bizType, bizId, updateBy);
-    }
-
-    /**
      * 根据文件ID集合批量绑定文件到业务
      *
      * @param fileIds 文件ID集合
@@ -403,41 +355,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             // 绑定数量不足说明存在不存在、已删除、非本人临时文件或其它业务文件，直接回滚业务保存
             throw new ServiceException("文件不存在或无权绑定到当前业务");
-        }
-        return rows;
-    }
-
-    /**
-     * 同步业务文件集合
-     *
-     * @param newUrls 当前业务保存后的文件地址集合
-     * @param oldUrls 修改前业务已关联的文件地址集合
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Override
-    @Deprecated
-    @Transactional(rollbackFor = Exception.class)
-    public int syncBizStorageFiles(Collection<String> newUrls, Collection<String> oldUrls, String bizType, String bizId,
-            String updateBy)
-    {
-        // 先绑定当前仍在使用的文件，避免临时文件清理任务误删
-        int rows = bindStorageFiles(newUrls, bizType, bizId, updateBy);
-        // 当前文件集合用于判断旧文件是否已经被业务替换或移除
-        Set<String> currentUrls = normalizeUrlSet(newUrls);
-        if (oldUrls == null || oldUrls.isEmpty())
-        {
-            return rows;
-        }
-        for (String oldUrl : oldUrls)
-        {
-            // 旧文件不在新集合中时才进入待删除，仍被使用的文件保持已绑定状态
-            if (StringUtils.isNotBlank(oldUrl) && !currentUrls.contains(oldUrl))
-            {
-                rows += markStorageFileWaitDelete(oldUrl, bizType, updateBy);
-            }
         }
         return rows;
     }
@@ -476,46 +393,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         // 被移除的文件不立即物理删除，先进入待删除状态，后续由清理任务统一处理
         rows += markStorageFilesWaitDeleteByIds(waitDeleteFileIds, bizType, bizId, updateBy);
         return rows;
-    }
-
-    /**
-     * 获取已通过业务权限校验的业务文件信息
-     *
-     * @param url 文件访问地址
-     * @param bizType 业务类型
-     * @param bizId 业务ID
-     * @return X File Storage 文件信息
-     */
-    @Override
-    @Deprecated
-    public FileInfo getBusinessFileInfo(String url, String bizType, String bizId)
-    {
-        // 业务下载必须由业务接口传入明确身份，文件服务只负责校验文件归属
-        if (StringUtils.isBlank(url) || StringUtils.isBlank(bizType) || StringUtils.isBlank(bizId))
-        {
-            throw new ServiceException("文件业务参数不能为空");
-        }
-        SysStorageFile storageFile = storageFileMapper.selectStorageFileByUrl(sha256Hex(url), url);
-        if (storageFile == null)
-        {
-            throw new ServiceException("文件记录不存在");
-        }
-        // 已删除或等待删除的文件不再作为业务有效附件下载
-        if (StorageFileStatus.isInvalid(storageFile.getFileStatus()))
-        {
-            throw new ServiceException("文件已失效");
-        }
-        // 文件记录必须绑定到当前业务，避免业务接口拿错其它业务的文件
-        if (!bizType.equals(storageFile.getBizType()) || !bizId.equals(storageFile.getBizId()))
-        {
-            throw new ServiceException("文件不属于当前业务");
-        }
-        FileInfo fileInfo = toFileInfo(storageFile);
-        if (fileInfo == null)
-        {
-            throw new ServiceException("文件记录不存在");
-        }
-        return fileInfo;
     }
 
     /**
@@ -605,22 +482,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         // 按主键批量标记待删除时必须带业务归属，避免误删其它业务的同 ID 文件引用
         return storageFileMapper.markStorageFilesWaitDeleteByIds(idList, bizType, bizId, deleteTime, updateBy,
                 StorageFileStatus.DELETED.getCode());
-    }
-
-    /**
-     * 根据文件ID集合批量标记文件为待删除
-     *
-     * @param fileIds 文件ID集合
-     * @param bizType 业务类型
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Override
-    @Deprecated
-    public int markStorageFilesWaitDeleteByIds(Collection<Long> fileIds, String bizType, String updateBy)
-    {
-        // 旧签名缺少 bizId，无法保证业务边界，新业务应调用带 bizId 的重载方法
-        return 0;
     }
 
     /**
@@ -938,30 +799,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     }
 
     /**
-     * 清洗文件 URL 集合
-     *
-     * @param urls 文件访问地址集合
-     * @return 去空后的文件访问地址集合
-     */
-    private Set<String> normalizeUrlSet(Collection<String> urls)
-    {
-        Set<String> result = new HashSet<String>();
-        if (urls == null || urls.isEmpty())
-        {
-            return result;
-        }
-        for (String url : urls)
-        {
-            // 只保留非空 URL，避免空字符串参与旧文件替换判断
-            if (StringUtils.isNotBlank(url))
-            {
-                result.add(url);
-            }
-        }
-        return result;
-    }
-
-    /**
      * 去空并去重文件ID集合
      *
      * @param fileIds 文件ID集合
@@ -1026,28 +863,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             maxDelayHours = Math.max(maxDelayHours, storageFileProperties.getDeleteDelayHours(bizType));
         }
         return maxDelayHours;
-    }
-
-    /**
-     * 构建文件批量定位信息
-     *
-     * @param urls 文件访问地址集合
-     * @return 文件定位信息集合
-     */
-    private List<SysStorageFile> buildStorageFileKeys(Collection<String> urls)
-    {
-        // 使用 Set 去重，避免同一个 URL 在批量 SQL 中重复出现
-        Set<String> urlSet = normalizeUrlSet(urls);
-        List<SysStorageFile> files = new ArrayList<SysStorageFile>();
-        for (String url : urlSet)
-        {
-            // 每个文件都使用 url_hash + url 双条件定位，避免长 URL 前缀和哈希碰撞问题
-            SysStorageFile file = new SysStorageFile();
-            file.setUrl(url);
-            file.setUrlHash(sha256Hex(url));
-            files.add(file);
-        }
-        return files;
     }
 
     /**

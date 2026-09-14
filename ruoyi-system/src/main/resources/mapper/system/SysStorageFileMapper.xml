@@ -159,32 +159,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
           and url = #{url}
     </delete>
 
-    <update id="bindStorageFile">
-        update sys_storage_file
-        set file_status = '1',
-            biz_type = #{bizType},
-            biz_id = #{bizId},
-            update_by = #{updateBy},
-            update_time = sysdate()
-        where url_hash = #{urlHash}
-          and url = #{url}
-          and file_status != '3'
-    </update>
-
-    <update id="bindStorageFiles">
-        update sys_storage_file
-        set file_status = '1',
-            biz_type = #{bizType},
-            biz_id = #{bizId},
-            update_by = #{updateBy},
-            update_time = sysdate()
-        where file_status != '3'
-          and
-          <foreach collection="files" item="file" open="(" separator="or" close=")">
-              (url_hash = #{file.urlHash} and url = #{file.url})
-          </foreach>
-    </update>
-
     <update id="bindStorageFilesByIds">
         update sys_storage_file
         set file_status = #{usedStatus,jdbcType=VARCHAR},
