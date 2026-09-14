@@ -1,5 +1,6 @@
 package com.ruoyi.web.controller.system;
 
+import java.util.Collections;
 import java.util.Map;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.slf4j.Logger;
@@ -228,6 +229,8 @@ public class SysProfileController extends BaseController
                     AVATAR_THUMBNAIL_WIDTH, AVATAR_THUMBNAIL_HEIGHT);
             // 数据库存储最终可访问的头像 URL
             String avatar = fileInfo.getUrl();
+            // 上传成功后先读取文件资产记录，后续使用 fileId + bizType + bizId 绑定新头像
+            SysStorageFile newAvatarFile = storageFileService.selectStorageFileByUrl(avatar);
             // 先记录旧头像，事务提交成功后再处理历史本地文件删除
             String oldAvatar = loginUser.getUser().getAvatar();
             boolean avatarSaved;
@@ -241,9 +244,12 @@ public class SysProfileController extends BaseController
                     {
                         return false;
                     }
-                    // 头像保存成功后把本次上传的新文件绑定到用户业务，避免被临时文件清理任务误删
-                    storageFileService.bindStorageFile(avatar, BIZ_TYPE_AVATAR, String.valueOf(loginUser.getUserId()),
-                            loginUser.getUsername());
+                    // 头像保存成功后按文件资产主键绑定到用户业务，避免继续使用 URL 版兼容接口
+                    if (newAvatarFile != null && newAvatarFile.getFileId() != null)
+                    {
+                        storageFileService.bindStorageFilesByIds(Collections.singletonList(newAvatarFile.getFileId()),
+                                BIZ_TYPE_AVATAR, String.valueOf(loginUser.getUserId()), loginUser.getUsername());
+                    }
                     if (StringUtils.isNotEmpty(oldAvatar) && !oldAvatar.startsWith(Constants.RESOURCE_PREFIX))
                     {
                         // X File Storage 上传的旧头像先标记待删除，交给定时任务延迟物理清理
@@ -265,8 +271,8 @@ public class SysProfileController extends BaseController
                     // 历史若依本地头像不参与数据库事务，等数据库提交成功后再删除磁盘文件
                     FileUtils.deleteFile(RuoYiConfig.getProfile() + FileUtils.stripPrefix(oldAvatar));
                 }
-                // 绑定后按 URL 读取文件资产记录，头像接口也同步返回 fileId、access 和对象 Key
-                SysStorageFile storageFile = storageFileService.selectStorageFileByUrl(avatar);
+                // 头像接口同步返回 fileId、access 和对象 Key
+                SysStorageFile storageFile = newAvatarFile;
                 // 头像返回给前端时使用对外预览地址，避免私有或代理模式泄露真实存储 URL
                 String displayAvatar = storageFile == null ? avatar : storageFileAccessUrlBuilder.buildPreviewUrl(storageFile);
                 // 返回头像 URL 和实际平台，前端可据此展示当前上传去向
