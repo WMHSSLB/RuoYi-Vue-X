@@ -18,7 +18,31 @@ public interface SysStorageFileMapper
      * @param url 文件访问地址
      * @return 文件记录
      */
-    public SysStorageFile selectStorageFileByUrl(String url);
+    public SysStorageFile selectStorageFileByUrl(@Param("urlHash") String urlHash, @Param("url") String url);
+
+    /**
+     * 根据文件ID查询文件记录
+     *
+     * @param fileId 文件ID
+     * @return 文件记录
+     */
+    public SysStorageFile selectStorageFileById(@Param("fileId") Long fileId);
+
+    /**
+     * 根据文件ID集合查询文件记录
+     *
+     * @param fileIds 文件ID集合
+     * @return 文件记录集合
+     */
+    public List<SysStorageFile> selectStorageFileByIds(@Param("fileIds") List<Long> fileIds);
+
+    /**
+     * 查询文件记录列表
+     *
+     * @param storageFile 文件记录查询条件
+     * @return 文件记录集合
+     */
+    public List<SysStorageFile> selectStorageFileList(SysStorageFile storageFile);
 
     /**
      * 查询可清理的文件记录
@@ -52,7 +76,7 @@ public interface SysStorageFileMapper
      * @param url 文件访问地址
      * @return 结果
      */
-    public int deleteStorageFileByUrl(String url);
+    public int deleteStorageFileByUrl(@Param("urlHash") String urlHash, @Param("url") String url);
 
     /**
      * 绑定文件到业务
@@ -63,8 +87,34 @@ public interface SysStorageFileMapper
      * @param updateBy 更新者
      * @return 结果
      */
-    public int bindStorageFile(@Param("url") String url, @Param("bizType") String bizType,
+    public int bindStorageFile(@Param("urlHash") String urlHash, @Param("url") String url, @Param("bizType") String bizType,
             @Param("bizId") String bizId, @Param("updateBy") String updateBy);
+
+    /**
+     * 批量绑定文件到业务
+     *
+     * @param files 文件定位信息集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 结果
+     */
+    public int bindStorageFiles(@Param("files") List<SysStorageFile> files, @Param("bizType") String bizType,
+            @Param("bizId") String bizId, @Param("updateBy") String updateBy);
+
+    /**
+     * 根据文件ID集合批量绑定文件到业务
+     *
+     * @param fileIds 文件ID集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 结果
+     */
+    public int bindStorageFilesByIds(@Param("fileIds") List<Long> fileIds, @Param("bizType") String bizType,
+            @Param("bizId") String bizId, @Param("updateBy") String updateBy, @Param("createBy") String createBy,
+            @Param("tempStatus") String tempStatus, @Param("usedStatus") String usedStatus,
+            @Param("deletedStatus") String deletedStatus);
 
     /**
      * 标记文件为待删除
@@ -74,8 +124,32 @@ public interface SysStorageFileMapper
      * @param updateBy 更新者
      * @return 结果
      */
-    public int markStorageFileWaitDelete(@Param("url") String url, @Param("deleteTime") LocalDateTime deleteTime,
-            @Param("updateBy") String updateBy);
+    public int markStorageFileWaitDelete(@Param("urlHash") String urlHash, @Param("url") String url,
+            @Param("deleteTime") LocalDateTime deleteTime, @Param("updateBy") String updateBy);
+
+    /**
+     * 根据文件ID集合批量标记文件为待删除
+     *
+     * @param fileIds 文件ID集合
+     * @param deleteTime 删除时间
+     * @param updateBy 更新者
+     * @return 结果
+     */
+    public int markStorageFilesWaitDeleteByIds(@Param("fileIds") List<Long> fileIds, @Param("bizType") String bizType,
+            @Param("bizId") String bizId, @Param("deleteTime") LocalDateTime deleteTime, @Param("updateBy") String updateBy,
+            @Param("deletedStatus") String deletedStatus);
+
+    /**
+     * 根据业务类型和业务ID批量标记文件为待删除
+     *
+     * @param bizTypes 业务类型集合
+     * @param bizId 业务ID
+     * @param deleteTime 删除时间
+     * @param updateBy 更新者
+     * @return 结果
+     */
+    public int markStorageFilesWaitDeleteByBiz(@Param("bizTypes") List<String> bizTypes, @Param("bizId") String bizId,
+            @Param("deleteTime") LocalDateTime deleteTime, @Param("updateBy") String updateBy);
 
     /**
      * 标记文件为已删除
@@ -84,5 +158,17 @@ public interface SysStorageFileMapper
      * @param updateBy 更新者
      * @return 结果
      */
-    public int markStorageFileDeleted(@Param("url") String url, @Param("updateBy") String updateBy);
+    public int markStorageFileDeleted(@Param("urlHash") String urlHash, @Param("url") String url,
+            @Param("updateBy") String updateBy);
+
+    /**
+     * 根据文件ID更新文件状态
+     *
+     * @param fileId 文件ID
+     * @param fileStatus 文件状态
+     * @param updateBy 更新者
+     * @return 结果
+     */
+    public int updateStorageFileStatus(@Param("fileId") Long fileId, @Param("fileStatus") String fileStatus,
+            @Param("updateBy") String updateBy);
 }

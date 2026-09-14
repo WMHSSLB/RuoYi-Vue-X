@@ -8,6 +8,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <id     property="fileId"           column="file_id"           />
         <result property="storageId"        column="storage_id"        />
         <result property="url"              column="url"               />
+        <result property="urlHash"          column="url_hash"          />
+        <result property="objectKey"        column="object_key"        />
+        <result property="access"           column="access"            />
         <result property="size"             column="size"              />
         <result property="filename"         column="filename"          />
         <result property="originalFilename" column="original_filename" />
@@ -18,6 +21,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="platform"         column="platform"          />
         <result property="thUrl"            column="th_url"            />
         <result property="thFilename"       column="th_filename"       />
+        <result property="thObjectKey"      column="th_object_key"     />
         <result property="thSize"           column="th_size"           />
         <result property="thContentType"    column="th_content_type"   />
         <result property="objectId"         column="object_id"         />
@@ -44,18 +48,48 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectStorageFileVo">
-        select file_id, storage_id, url, size, filename, original_filename, base_path, path, ext, content_type,
-               platform, th_url, th_filename, th_size, th_content_type, object_id, object_type, metadata,
+        select file_id, storage_id, url, url_hash, object_key, access, size, filename, original_filename, base_path, path, ext, content_type,
+               platform, th_url, th_filename, th_object_key, th_size, th_content_type, object_id, object_type, metadata,
                user_metadata, th_metadata, th_user_metadata, attr, file_acl, th_file_acl, hash_info,
                upload_id, upload_status, file_status, biz_type, biz_id, delete_time,
                create_by, create_time, update_by, update_time, remark
         from sys_storage_file
     </sql>
 
-    <select id="selectStorageFileByUrl" parameterType="String" resultMap="SysStorageFileResult">
+    <select id="selectStorageFileByUrl" resultMap="SysStorageFileResult">
         <include refid="selectStorageFileVo"/>
-        where url = #{url}
+        where url_hash = #{urlHash}
+          and url = #{url}
         limit 1
+    </select>
+
+    <select id="selectStorageFileById" resultMap="SysStorageFileResult">
+        <include refid="selectStorageFileVo"/>
+        where file_id = #{fileId}
+    </select>
+
+    <select id="selectStorageFileByIds" resultMap="SysStorageFileResult">
+        <include refid="selectStorageFileVo"/>
+        where file_status != '3'
+          and file_id in
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+    </select>
+
+    <select id="selectStorageFileList" parameterType="SysStorageFile" resultMap="SysStorageFileResult">
+        <include refid="selectStorageFileVo"/>
+        <where>
+            <if test="url != null and url != ''"> and url like concat('%', #{url}, '%')</if>
+            <if test="objectKey != null and objectKey != ''"> and object_key like concat('%', #{objectKey}, '%')</if>
+            <if test="originalFilename != null and originalFilename != ''"> and original_filename like concat('%', #{originalFilename}, '%')</if>
+            <if test="platform != null and platform != ''"> and platform = #{platform}</if>
+            <if test="access != null and access != ''"> and access = #{access}</if>
+            <if test="fileStatus != null and fileStatus != ''"> and file_status = #{fileStatus}</if>
+            <if test="bizType != null and bizType != ''"> and biz_type = #{bizType}</if>
+            <if test="bizId != null and bizId != ''"> and biz_id = #{bizId}</if>
+        </where>
+        order by create_time desc
     </select>
 
     <select id="selectCleanableStorageFiles" resultMap="SysStorageFileResult">
@@ -67,14 +101,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <insert id="insertStorageFile" parameterType="SysStorageFile" useGeneratedKeys="true" keyProperty="fileId">
         insert into sys_storage_file (
-            storage_id, url, size, filename, original_filename, base_path, path, ext, content_type,
-            platform, th_url, th_filename, th_size, th_content_type, object_id, object_type, metadata,
+            storage_id, url, url_hash, object_key, access, size, filename, original_filename, base_path, path, ext, content_type,
+            platform, th_url, th_filename, th_object_key, th_size, th_content_type, object_id, object_type, metadata,
             user_metadata, th_metadata, th_user_metadata, attr, file_acl, th_file_acl, hash_info,
             upload_id, upload_status, file_status, biz_type, biz_id, delete_time,
             create_by, create_time, update_by, update_time, remark
         ) values (
-            #{storageId}, #{url}, #{size}, #{filename}, #{originalFilename}, #{basePath}, #{path}, #{ext}, #{contentType},
-            #{platform}, #{thUrl}, #{thFilename}, #{thSize}, #{thContentType}, #{objectId}, #{objectType}, #{metadata},
+            #{storageId}, #{url}, #{urlHash}, #{objectKey}, #{access}, #{size}, #{filename}, #{originalFilename}, #{basePath}, #{path}, #{ext}, #{contentType},
+            #{platform}, #{thUrl}, #{thFilename}, #{thObjectKey}, #{thSize}, #{thContentType}, #{objectId}, #{objectType}, #{metadata},
             #{userMetadata}, #{thMetadata}, #{thUserMetadata}, #{attr}, #{fileAcl}, #{thFileAcl}, #{hashInfo},
             #{uploadId}, #{uploadStatus}, #{fileStatus}, #{bizType}, #{bizId}, #{deleteTime},
             #{createBy}, #{createTime}, #{updateBy}, #{updateTime}, #{remark}
@@ -85,6 +119,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         update sys_storage_file
         <set>
             storage_id = #{storageId},
+            url = #{url},
+            url_hash = #{urlHash},
+            object_key = #{objectKey},
+            access = #{access},
             size = #{size},
             filename = #{filename},
             original_filename = #{originalFilename},
@@ -95,6 +133,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             platform = #{platform},
             th_url = #{thUrl},
             th_filename = #{thFilename},
+            th_object_key = #{thObjectKey},
             th_size = #{thSize},
             th_content_type = #{thContentType},
             object_id = #{objectId},
@@ -115,7 +154,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </update>
 
     <delete id="deleteStorageFileByUrl" parameterType="String">
-        delete from sys_storage_file where url = #{url}
+        delete from sys_storage_file
+        where url_hash = #{urlHash}
+          and url = #{url}
     </delete>
 
     <update id="bindStorageFile">
@@ -125,8 +166,41 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             biz_id = #{bizId},
             update_by = #{updateBy},
             update_time = sysdate()
-        where url = #{url}
+        where url_hash = #{urlHash}
+          and url = #{url}
           and file_status != '3'
+    </update>
+
+    <update id="bindStorageFiles">
+        update sys_storage_file
+        set file_status = '1',
+            biz_type = #{bizType},
+            biz_id = #{bizId},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where file_status != '3'
+          and
+          <foreach collection="files" item="file" open="(" separator="or" close=")">
+              (url_hash = #{file.urlHash} and url = #{file.url})
+          </foreach>
+    </update>
+
+    <update id="bindStorageFilesByIds">
+        update sys_storage_file
+        set file_status = #{usedStatus,jdbcType=VARCHAR},
+            biz_type = #{bizType},
+            biz_id = #{bizId},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where file_status != #{deletedStatus}
+          and file_id in
+          <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+              #{fileId}
+          </foreach>
+          and (
+              (file_status = #{tempStatus} and create_by = #{createBy})
+              or (biz_type = #{bizType} and biz_id = #{bizId})
+          )
     </update>
 
     <update id="markStorageFileWaitDelete">
@@ -135,8 +209,38 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             delete_time = #{deleteTime},
             update_by = #{updateBy},
             update_time = sysdate()
-        where url = #{url}
+        where url_hash = #{urlHash}
+          and url = #{url}
           and file_status != '3'
+    </update>
+
+    <update id="markStorageFilesWaitDeleteByIds">
+        update sys_storage_file
+        set file_status = '2',
+            delete_time = #{deleteTime},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where file_status != #{deletedStatus}
+          and biz_type = #{bizType}
+          and biz_id = #{bizId}
+          and file_id in
+          <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+              #{fileId}
+          </foreach>
+    </update>
+
+    <update id="markStorageFilesWaitDeleteByBiz">
+        update sys_storage_file
+        set file_status = '2',
+            delete_time = #{deleteTime},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where file_status != '3'
+          and biz_id = #{bizId}
+          and biz_type in
+          <foreach collection="bizTypes" item="bizType" open="(" separator="," close=")">
+              #{bizType}
+          </foreach>
     </update>
 
     <update id="markStorageFileDeleted">
@@ -145,6 +249,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             delete_time = sysdate(),
             update_by = #{updateBy},
             update_time = sysdate()
-        where url = #{url}
+        where url_hash = #{urlHash}
+          and url = #{url}
+    </update>
+
+    <update id="updateStorageFileStatus">
+        update sys_storage_file
+        set file_status = #{fileStatus},
+            update_by = #{updateBy},
+            update_time = sysdate()
+        where file_id = #{fileId}
     </update>
 </mapper>

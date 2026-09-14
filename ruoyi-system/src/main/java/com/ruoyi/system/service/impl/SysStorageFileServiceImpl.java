@@ -1,18 +1,35 @@
 package com.ruoyi.system.service.impl;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.dromara.x.file.storage.core.FileInfo;
+import org.dromara.x.file.storage.core.FileStorageService;
 import org.dromara.x.file.storage.core.hash.HashInfo;
 import org.dromara.x.file.storage.core.upload.FilePartInfo;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
+import com.ruoyi.common.constant.StorageFileConstants;
+import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
+import com.ruoyi.common.enums.StorageFileAccess;
+import com.ruoyi.common.enums.StorageFileStatus;
+import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.system.config.StorageFileProperties;
 import com.ruoyi.system.domain.SysStorageFile;
@@ -20,6 +37,8 @@ import com.ruoyi.system.domain.SysStorageFilePart;
 import com.ruoyi.system.mapper.SysStorageFileMapper;
 import com.ruoyi.system.mapper.SysStorageFilePartMapper;
 import com.ruoyi.system.service.ISysStorageFileService;
+import com.ruoyi.system.service.StorageFileAccessTokenService;
+import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
 
 /**
  * 存储文件记录 服务层实现
@@ -31,18 +50,6 @@ import com.ruoyi.system.service.ISysStorageFileService;
 @Service
 public class SysStorageFileServiceImpl implements ISysStorageFileService
 {
-    /** 临时文件 */
-    private static final String STATUS_TEMP = "0";
-
-    /** 已使用文件 */
-    private static final String STATUS_USED = "1";
-
-    /** 待删除文件 */
-    private static final String STATUS_WAIT_DELETE = "2";
-
-    /** 已删除文件 */
-    private static final String STATUS_DELETED = "3";
-
     @Autowired
     private SysStorageFileMapper storageFileMapper;
 
@@ -51,6 +58,169 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
 
     @Autowired
     private StorageFileProperties storageFileProperties;
+
+    @Autowired
+    private ObjectProvider<FileStorageService> fileStorageServiceProvider;
+
+    @Autowired
+    private StorageFileAccessUrlBuilder storageFileAccessUrlBuilder;
+
+    @Autowired
+    private StorageFileAccessTokenService storageFileAccessTokenService;
+
+    /**
+     * 根据 URL 查询存储文件记录
+     *
+     * @param url 文件访问地址
+     * @return 存储文件记录
+     */
+    @Override
+    public SysStorageFile selectStorageFileByUrl(String url)
+    {
+        // URL 为空时无法定位文件记录，直接返回 null 交给调用方判断
+        if (StringUtils.isBlank(url))
+        {
+            return null;
+        }
+        return storageFileMapper.selectStorageFileByUrl(sha256Hex(url), url);
+    }
+
+    /**
+     * 根据文件ID查询存储文件记录
+     *
+     * @param fileId 文件ID
+     * @return 存储文件记录
+     */
+    @Override
+    public SysStorageFile selectStorageFileById(Long fileId)
+    {
+        // 文件ID为空时无法定位记录，直接返回 null 交给调用方判断
+        if (fileId == null)
+        {
+            return null;
+        }
+        return storageFileMapper.selectStorageFileById(fileId);
+    }
+
+    /**
+     * 根据文件ID集合查询存储文件记录
+     *
+     * @param fileIds 文件ID集合
+     * @return 存储文件记录集合
+     */
+    @Override
+    public List<SysStorageFile> selectStorageFileByIds(List<Long> fileIds)
+    {
+        // 空集合直接返回空列表，避免 Mapper 生成非法 in () SQL
+        if (fileIds == null || fileIds.isEmpty())
+        {
+            return new ArrayList<SysStorageFile>();
+        }
+        return storageFileMapper.selectStorageFileByIds(fileIds);
+    }
+
+    /**
+     * 查询存储文件记录列表
+     *
+     * @param storageFile 查询条件
+     * @return 存储文件记录集合
+     */
+    @Override
+    public List<SysStorageFile> selectStorageFileList(SysStorageFile storageFile)
+    {
+        // 查询条件为空时使用空对象，避免 Mapper 判空复杂化
+        return storageFileMapper.selectStorageFileList(storageFile == null ? new SysStorageFile() : storageFile);
+    }
+
+    /**
+     * 根据业务类型和业务ID查询已绑定的存储文件记录
+     *
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @return 存储文件记录集合
+     */
+    @Override
+    public List<SysStorageFile> selectStorageFileListByBiz(String bizType, String bizId)
+    {
+        // 业务身份必须成对出现，避免空条件误查出全量文件
+        if (StringUtils.isBlank(bizType) || StringUtils.isBlank(bizId))
+        {
+            return new ArrayList<SysStorageFile>();
+        }
+        SysStorageFile query = new SysStorageFile();
+        // 只按本系统业务字段查询，不使用 X File Storage 自带的 objectId/objectType
+        query.setBizType(bizType);
+        query.setBizId(bizId);
+        // 业务回显只返回已绑定文件，过滤临时文件、待删除文件和已删除文件
+        query.setFileStatus(StorageFileStatus.USED.getCode());
+        return storageFileMapper.selectStorageFileList(query);
+    }
+
+    /**
+     * 根据文件ID集合构造已授权的文件回显列表
+     * <p>
+     * 调用方必须先完成业务权限校验，本方法只负责生成文件回显数据和私有文件短期访问地址
+     *
+     * @param fileIds 文件ID集合
+     * @return 文件回显 DTO 列表
+     */
+    @Override
+    public List<StorageFileUploadRespDTO> buildAuthorizedFileListByIds(Collection<Long> fileIds)
+    {
+        // 业务私有文件默认签发绑定当前登录用户的 token，避免授权链接被复制给其他账号继续访问
+        return buildAuthorizedFileListByIds(fileIds, true);
+    }
+
+    /**
+     * 根据文件ID集合构造分享式授权文件回显列表
+     *
+     * @param fileIds 文件ID集合
+     * @return 文件回显 DTO 列表
+     */
+    @Override
+    public List<StorageFileUploadRespDTO> buildShareAuthorizedFileListByIds(Collection<Long> fileIds)
+    {
+        // 分享式 token 只绑定 fileId，不绑定当前用户，仅供明确需要短期分享链接的业务主动调用
+        return buildAuthorizedFileListByIds(fileIds, false);
+    }
+
+    /**
+     * 根据文件ID集合构造绑定当前用户的文件回显列表
+     * <p>
+     * 适用于合同、财务、证件等高敏感业务，调用方必须先完成业务权限校验
+     *
+     * @param fileIds 文件ID集合
+     * @return 文件回显 DTO 列表
+     */
+    @Override
+    public List<StorageFileUploadRespDTO> buildUserBoundAuthorizedFileListByIds(Collection<Long> fileIds)
+    {
+        return buildAuthorizedFileListByIds(fileIds, true);
+    }
+
+    /**
+     * 根据文件ID集合构造文件回显列表
+     *
+     * @param fileIds 文件ID集合
+     * @param bindCurrentUser true 表示私有文件 token 绑定当前登录用户
+     * @return 文件回显 DTO 列表
+     */
+    private List<StorageFileUploadRespDTO> buildAuthorizedFileListByIds(Collection<Long> fileIds, boolean bindCurrentUser)
+    {
+        List<Long> idList = normalizeFileIdList(fileIds);
+        if (idList.isEmpty())
+        {
+            return new ArrayList<StorageFileUploadRespDTO>();
+        }
+        List<SysStorageFile> storageFiles = selectStorageFileByIds(idList);
+        List<StorageFileUploadRespDTO> result = new ArrayList<StorageFileUploadRespDTO>();
+        for (SysStorageFile storageFile : storageFiles)
+        {
+            // 业务层已经完成访问判断，这里给每个文件生成前端可直接使用的回显信息
+            result.add(buildAuthorizedFileRespDTO(storageFile, bindCurrentUser));
+        }
+        return result;
+    }
 
     /**
      * 保存上传文件记录
@@ -67,7 +237,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             return false;
         }
         // 同一个 URL 重复保存时按更新处理，避免重试上传造成唯一索引冲突
-        SysStorageFile exists = storageFileMapper.selectStorageFileByUrl(fileInfo.getUrl());
+        SysStorageFile exists = storageFileMapper.selectStorageFileByUrl(sha256Hex(fileInfo.getUrl()), fileInfo.getUrl());
         SysStorageFile storageFile = toStorageFile(fileInfo);
         if (exists != null)
         {
@@ -77,7 +247,9 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             return storageFileMapper.updateStorageFile(storageFile) > 0;
         }
         // 新上传文件先记录为临时状态，等业务保存成功后再绑定为已使用
-        storageFile.setFileStatus(STATUS_TEMP);
+        storageFile.setFileStatus(StorageFileStatus.TEMP.getCode());
+        // 记录上传人，私有临时文件下载时可判断是否属于当前登录用户
+        storageFile.setCreateBy(getCurrentUsernameQuietly());
         storageFile.setCreateTime(fileInfo.getCreateTime() == null ? DateUtils.getNowDate() : fileInfo.getCreateTime());
         return storageFileMapper.insertStorageFile(storageFile) > 0;
     }
@@ -104,7 +276,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     public FileInfo getByUrl(String url)
     {
         // 按 URL 从 sys_storage_file 还原 FileInfo，支持官网文档中的 delete(url)、exists(url) 等操作
-        return toFileInfo(storageFileMapper.selectStorageFileByUrl(url));
+        return toFileInfo(storageFileMapper.selectStorageFileByUrl(sha256Hex(url), url));
     }
 
     /**
@@ -164,6 +336,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
      * @return 结果
      */
     @Override
+    @Deprecated
     public int bindStorageFile(String url, String bizType, String bizId, String updateBy)
     {
         // 业务保存成功后把临时文件转为已使用，避免被临时文件清理任务误删
@@ -171,7 +344,207 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             return 0;
         }
-        return storageFileMapper.bindStorageFile(url, bizType, bizId, updateBy);
+        return storageFileMapper.bindStorageFile(sha256Hex(url), url, bizType, bizId, updateBy);
+    }
+
+    /**
+     * 批量绑定文件到业务
+     *
+     * @param urls 文件访问地址集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    @Deprecated
+    public int bindStorageFiles(Collection<String> urls, String bizType, String bizId, String updateBy)
+    {
+        // 没有文件地址时无需处理，便于业务保存空附件
+        if (urls == null || urls.isEmpty())
+        {
+            return 0;
+        }
+        // 将 URL 集合转换为 url_hash + url 精确定位信息，交给 Mapper 一次批量更新
+        List<SysStorageFile> files = buildStorageFileKeys(urls);
+        if (files.isEmpty())
+        {
+            return 0;
+        }
+        return storageFileMapper.bindStorageFiles(files, bizType, bizId, updateBy);
+    }
+
+    /**
+     * 根据文件ID集合批量绑定文件到业务
+     *
+     * @param fileIds 文件ID集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    public int bindStorageFilesByIds(Collection<Long> fileIds, String bizType, String bizId, String updateBy)
+    {
+        // 业务身份为空时不允许绑定，避免文件资产归属不完整
+        if (StringUtils.isBlank(bizType) || StringUtils.isBlank(bizId))
+        {
+            return 0;
+        }
+        List<Long> idList = normalizeFileIdList(fileIds);
+        if (idList.isEmpty())
+        {
+            return 0;
+        }
+        // 只能绑定当前用户上传的临时文件，或当前业务已经绑定的文件，避免抢绑其它业务文件
+        int rows = storageFileMapper.bindStorageFilesByIds(idList, bizType, bizId, updateBy, updateBy,
+                StorageFileStatus.TEMP.getCode(), StorageFileStatus.USED.getCode(), StorageFileStatus.DELETED.getCode());
+        if (rows < idList.size())
+        {
+            // 绑定数量不足说明存在不存在、已删除、非本人临时文件或其它业务文件，直接回滚业务保存
+            throw new ServiceException("文件不存在或无权绑定到当前业务");
+        }
+        return rows;
+    }
+
+    /**
+     * 同步业务文件集合
+     *
+     * @param newUrls 当前业务保存后的文件地址集合
+     * @param oldUrls 修改前业务已关联的文件地址集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    @Deprecated
+    @Transactional(rollbackFor = Exception.class)
+    public int syncBizStorageFiles(Collection<String> newUrls, Collection<String> oldUrls, String bizType, String bizId,
+            String updateBy)
+    {
+        // 先绑定当前仍在使用的文件，避免临时文件清理任务误删
+        int rows = bindStorageFiles(newUrls, bizType, bizId, updateBy);
+        // 当前文件集合用于判断旧文件是否已经被业务替换或移除
+        Set<String> currentUrls = normalizeUrlSet(newUrls);
+        if (oldUrls == null || oldUrls.isEmpty())
+        {
+            return rows;
+        }
+        for (String oldUrl : oldUrls)
+        {
+            // 旧文件不在新集合中时才进入待删除，仍被使用的文件保持已绑定状态
+            if (StringUtils.isNotBlank(oldUrl) && !currentUrls.contains(oldUrl))
+            {
+                rows += markStorageFileWaitDelete(oldUrl, bizType, updateBy);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * 根据文件ID集合同步业务文件集合
+     *
+     * @param newFileIds 当前业务保存后的文件ID集合
+     * @param oldFileIds 修改前业务已关联的文件ID集合
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int syncBizStorageFilesByIds(Collection<Long> newFileIds, Collection<Long> oldFileIds, String bizType,
+            String bizId, String updateBy)
+    {
+        // 先把当前表单仍保存的文件绑定为已使用，防止临时清理任务误删
+        int rows = bindStorageFilesByIds(newFileIds, bizType, bizId, updateBy);
+        Set<Long> currentFileIds = new HashSet<Long>(normalizeFileIdList(newFileIds));
+        if (oldFileIds == null || oldFileIds.isEmpty())
+        {
+            return rows;
+        }
+        List<Long> waitDeleteFileIds = new ArrayList<Long>();
+        for (Long oldFileId : oldFileIds)
+        {
+            // 旧文件ID不在新集合中，说明用户从业务表单里移除了这个文件
+            if (oldFileId != null && !currentFileIds.contains(oldFileId))
+            {
+                waitDeleteFileIds.add(oldFileId);
+            }
+        }
+        // 被移除的文件不立即物理删除，先进入待删除状态，后续由清理任务统一处理
+        rows += markStorageFilesWaitDeleteByIds(waitDeleteFileIds, bizType, bizId, updateBy);
+        return rows;
+    }
+
+    /**
+     * 获取已通过业务权限校验的业务文件信息
+     *
+     * @param url 文件访问地址
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @return X File Storage 文件信息
+     */
+    @Override
+    @Deprecated
+    public FileInfo getBusinessFileInfo(String url, String bizType, String bizId)
+    {
+        // 业务下载必须由业务接口传入明确身份，文件服务只负责校验文件归属
+        if (StringUtils.isBlank(url) || StringUtils.isBlank(bizType) || StringUtils.isBlank(bizId))
+        {
+            throw new ServiceException("文件业务参数不能为空");
+        }
+        SysStorageFile storageFile = storageFileMapper.selectStorageFileByUrl(sha256Hex(url), url);
+        if (storageFile == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        // 已删除或等待删除的文件不再作为业务有效附件下载
+        if (StorageFileStatus.isInvalid(storageFile.getFileStatus()))
+        {
+            throw new ServiceException("文件已失效");
+        }
+        // 文件记录必须绑定到当前业务，避免业务接口拿错其它业务的文件
+        if (!bizType.equals(storageFile.getBizType()) || !bizId.equals(storageFile.getBizId()))
+        {
+            throw new ServiceException("文件不属于当前业务");
+        }
+        FileInfo fileInfo = toFileInfo(storageFile);
+        if (fileInfo == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        return fileInfo;
+    }
+
+    /**
+     * 校验分片上传会话是否属于当前登录用户
+     *
+     * @param url 文件访问地址
+     */
+    @Override
+    public void checkMultipartOwner(String url)
+    {
+        SysStorageFile storageFile = selectStorageFileByUrl(url);
+        if (storageFile == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        if (StringUtils.isBlank(storageFile.getUploadId()))
+        {
+            throw new ServiceException("文件不是有效的分片上传会话");
+        }
+        // 超级管理员允许兜底处理异常分片任务，普通用户只能操作自己初始化的分片上传
+        if (SecurityUtils.isAdmin())
+        {
+            return;
+        }
+        String username = SecurityUtils.getUsername();
+        if (!username.equals(storageFile.getCreateBy()))
+        {
+            throw new ServiceException("只能操作自己创建的分片上传任务");
+        }
     }
 
     /**
@@ -192,7 +565,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         }
         // 延迟删除给浏览器缓存、CDN 缓存和短时间回滚留出缓冲
         LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
-        return storageFileMapper.markStorageFileWaitDelete(url, deleteTime, updateBy);
+        return storageFileMapper.markStorageFileWaitDelete(sha256Hex(url), url, deleteTime, updateBy);
     }
 
     /**
@@ -212,6 +585,86 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     }
 
     /**
+     * 根据文件ID集合批量标记文件为待删除
+     *
+     * @param fileIds 文件ID集合
+     * @param bizType 业务类型
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    public int markStorageFilesWaitDeleteByIds(Collection<Long> fileIds, String bizType, String bizId, String updateBy)
+    {
+        List<Long> idList = normalizeFileIdList(fileIds);
+        if (idList.isEmpty() || StringUtils.isBlank(bizType) || StringUtils.isBlank(bizId))
+        {
+            return 0;
+        }
+        int delayHours = storageFileProperties.getDeleteDelayHours(bizType);
+        LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
+        // 按主键批量标记待删除时必须带业务归属，避免误删其它业务的同 ID 文件引用
+        return storageFileMapper.markStorageFilesWaitDeleteByIds(idList, bizType, bizId, deleteTime, updateBy,
+                StorageFileStatus.DELETED.getCode());
+    }
+
+    /**
+     * 根据文件ID集合批量标记文件为待删除
+     *
+     * @param fileIds 文件ID集合
+     * @param bizType 业务类型
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    @Deprecated
+    public int markStorageFilesWaitDeleteByIds(Collection<Long> fileIds, String bizType, String updateBy)
+    {
+        // 旧签名缺少 bizId，无法保证业务边界，新业务应调用带 bizId 的重载方法
+        return 0;
+    }
+
+    /**
+     * 根据业务类型和业务ID批量标记文件为待删除
+     *
+     * @param bizType 业务类型
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    public int markStorageFilesWaitDeleteByBiz(String bizType, String bizId, String updateBy)
+    {
+        List<String> bizTypes = new ArrayList<String>();
+        if (StringUtils.isNotBlank(bizType))
+        {
+            bizTypes.add(bizType);
+        }
+        return markStorageFilesWaitDeleteByBiz(bizTypes, bizId, updateBy);
+    }
+
+    /**
+     * 根据业务类型集合和业务ID批量标记文件为待删除
+     *
+     * @param bizTypes 业务类型集合
+     * @param bizId 业务ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    public int markStorageFilesWaitDeleteByBiz(Collection<String> bizTypes, String bizId, String updateBy)
+    {
+        List<String> typeList = normalizeBizTypeList(bizTypes);
+        if (typeList.isEmpty() || StringUtils.isBlank(bizId))
+        {
+            return 0;
+        }
+        int delayHours = getMaxDeleteDelayHours(typeList);
+        LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
+        // 删除整条业务数据时，按业务ID和多个文件场景一次标记该业务下的所有文件
+        return storageFileMapper.markStorageFilesWaitDeleteByBiz(typeList, bizId, deleteTime, updateBy);
+    }
+
+    /**
      * 标记文件为已删除
      *
      * @param url 文件访问地址
@@ -226,7 +679,76 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             return 0;
         }
-        return storageFileMapper.markStorageFileDeleted(url, updateBy);
+        return storageFileMapper.markStorageFileDeleted(sha256Hex(url), url, updateBy);
+    }
+
+    /**
+     * 根据文件ID标记文件为待删除
+     *
+     * @param fileId 文件ID
+     * @param updateBy 更新者
+     * @return 影响行数
+     */
+    @Override
+    public int markStorageFileWaitDeleteById(Long fileId, String updateBy)
+    {
+        SysStorageFile storageFile = selectStorageFileById(fileId);
+        if (storageFile == null)
+        {
+            return 0;
+        }
+        return markStorageFileWaitDelete(storageFile.getUrl(), storageFile.getBizType(), updateBy);
+    }
+
+    /**
+     * 立即删除存储文件
+     *
+     * @param fileId 文件ID
+     * @param updateBy 更新者
+     * @return true 表示删除成功
+     */
+    @Override
+    public boolean deleteStorageFileNow(Long fileId, String updateBy)
+    {
+        SysStorageFile storageFile = selectStorageFileById(fileId);
+        if (storageFile == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        FileInfo fileInfo = toFileInfo(storageFile);
+        if (fileInfo == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        // 物理删除成功后 FileRecorder.delete 会回调标记已删除，这里再兜底标记一次保证状态一致
+        boolean deleted = fileStorageServiceProvider.getObject().delete(fileInfo);
+        if (deleted)
+        {
+            markStorageFileDeleted(storageFile.getUrl(), updateBy);
+        }
+        return deleted;
+    }
+
+    /**
+     * 重试删除待删除文件
+     *
+     * @param fileId 文件ID
+     * @param updateBy 更新者
+     * @return true 表示删除成功
+     */
+    @Override
+    public boolean retryDeleteStorageFile(Long fileId, String updateBy)
+    {
+        SysStorageFile storageFile = selectStorageFileById(fileId);
+        if (storageFile == null)
+        {
+            throw new ServiceException("文件记录不存在");
+        }
+        if (!StorageFileStatus.WAIT_DELETE.getCode().equals(storageFile.getFileStatus()))
+        {
+            throw new ServiceException("只有待删除文件可以重试删除");
+        }
+        return deleteStorageFileNow(fileId, updateBy);
     }
 
     /**
@@ -292,6 +814,53 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     }
 
     /**
+     * 构造已授权的文件回显 DTO
+     *
+     * @param storageFile 文件记录
+     * @param bindCurrentUser true 表示私有文件 token 绑定当前登录用户
+     * @return 文件回显 DTO
+     */
+    private StorageFileUploadRespDTO buildAuthorizedFileRespDTO(SysStorageFile storageFile, boolean bindCurrentUser)
+    {
+        StorageFileUploadRespDTO resp = new StorageFileUploadRespDTO();
+        if (storageFile == null)
+        {
+            return resp;
+        }
+        resp.setFileId(storageFile.getFileId());
+        resp.setObjectKey(storageFile.getObjectKey());
+        resp.setNewFileName(storageFile.getFilename());
+        resp.setOriginalFilename(storageFile.getOriginalFilename());
+        resp.setPlatform(storageFile.getPlatform());
+        resp.setThObjectKey(storageFile.getThObjectKey());
+        resp.setThNewFileName(storageFile.getThFilename());
+        resp.setSize(storageFile.getSize());
+        resp.setThSize(storageFile.getThSize());
+        resp.setContentType(storageFile.getContentType());
+        resp.setAccess(storageFile.getAccess());
+        String previewUrl = storageFileAccessUrlBuilder.buildPreviewUrl(storageFile);
+        String downloadUrl = storageFileAccessUrlBuilder.buildDownloadUrl(storageFile);
+        String thPreviewUrl = storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile);
+        if (StorageFileAccess.isPrivate(storageFile.getAccess()))
+        {
+            // 私有文件只在业务接口确认访问权后签发短期 token，前端不能直接拿真实存储地址
+            String token = bindCurrentUser ? storageFileAccessTokenService.issueUserBoundToken(storageFile.getFileId())
+                    : storageFileAccessTokenService.issueToken(storageFile.getFileId());
+            previewUrl = storageFileAccessTokenService.appendToken(previewUrl, token);
+            downloadUrl = storageFileAccessTokenService.appendToken(downloadUrl, token);
+            thPreviewUrl = storageFileAccessTokenService.appendToken(thPreviewUrl, token);
+        }
+        resp.setUrl(previewUrl);
+        resp.setPreviewUrl(previewUrl);
+        resp.setDownloadUrl(downloadUrl);
+        resp.setFileName(previewUrl);
+        resp.setThUrl(thPreviewUrl);
+        resp.setThPreviewUrl(thPreviewUrl);
+        resp.setThFileName(thPreviewUrl);
+        return resp;
+    }
+
+    /**
      * 将 X File Storage 文件信息转换为数据库记录
      *
      * @param fileInfo X File Storage 文件信息
@@ -303,6 +872,9 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         // 原样保存框架生成的元数据，保证后续可按 URL 还原 FileInfo 做删除、下载、判断存在
         storageFile.setStorageId(fileInfo.getId());
         storageFile.setUrl(fileInfo.getUrl());
+        storageFile.setUrlHash(sha256Hex(fileInfo.getUrl()));
+        storageFile.setObjectKey(buildObjectKey(fileInfo.getBasePath(), fileInfo.getPath(), fileInfo.getFilename()));
+        storageFile.setAccess(resolveAccess(fileInfo));
         storageFile.setSize(fileInfo.getSize());
         storageFile.setFilename(fileInfo.getFilename());
         storageFile.setOriginalFilename(fileInfo.getOriginalFilename());
@@ -313,6 +885,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         storageFile.setPlatform(fileInfo.getPlatform());
         storageFile.setThUrl(fileInfo.getThUrl());
         storageFile.setThFilename(fileInfo.getThFilename());
+        storageFile.setThObjectKey(buildObjectKey(fileInfo.getBasePath(), fileInfo.getPath(), fileInfo.getThFilename()));
         storageFile.setThSize(fileInfo.getThSize());
         storageFile.setThContentType(fileInfo.getThContentType());
         storageFile.setObjectId(fileInfo.getObjectId());
@@ -362,6 +935,137 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     {
         // X File Storage 的 FilePartInfo 使用 Date，这里只在落库前转换一次
         return date == null ? null : LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+    }
+
+    /**
+     * 清洗文件 URL 集合
+     *
+     * @param urls 文件访问地址集合
+     * @return 去空后的文件访问地址集合
+     */
+    private Set<String> normalizeUrlSet(Collection<String> urls)
+    {
+        Set<String> result = new HashSet<String>();
+        if (urls == null || urls.isEmpty())
+        {
+            return result;
+        }
+        for (String url : urls)
+        {
+            // 只保留非空 URL，避免空字符串参与旧文件替换判断
+            if (StringUtils.isNotBlank(url))
+            {
+                result.add(url);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 去空并去重文件ID集合
+     *
+     * @param fileIds 文件ID集合
+     * @return 文件ID列表
+     */
+    private List<Long> normalizeFileIdList(Collection<Long> fileIds)
+    {
+        List<Long> result = new ArrayList<Long>();
+        if (fileIds == null || fileIds.isEmpty())
+        {
+            return result;
+        }
+        Set<Long> fileIdSet = new HashSet<Long>();
+        for (Long fileId : fileIds)
+        {
+            // 空 fileId 和小于等于 0 的值都不参与业务绑定或待删除处理
+            if (fileId != null && fileId.longValue() > 0 && fileIdSet.add(fileId))
+            {
+                result.add(fileId);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 去空并去重业务类型集合
+     *
+     * @param bizTypes 业务类型集合
+     * @return 业务类型列表
+     */
+    private List<String> normalizeBizTypeList(Collection<String> bizTypes)
+    {
+        List<String> result = new ArrayList<String>();
+        if (bizTypes == null || bizTypes.isEmpty())
+        {
+            return result;
+        }
+        Set<String> bizTypeSet = new HashSet<String>();
+        for (String bizType : bizTypes)
+        {
+            // 删除整条业务数据时必须显式声明业务类型，避免只按 bizId 误删其它模块同 ID 的文件
+            if (StringUtils.isNotBlank(bizType) && bizTypeSet.add(bizType))
+            {
+                result.add(bizType);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 获取多个业务类型中的最长待删除延迟
+     *
+     * @param bizTypes 业务类型集合
+     * @return 最长待删除延迟小时数
+     */
+    private int getMaxDeleteDelayHours(Collection<String> bizTypes)
+    {
+        int maxDelayHours = 0;
+        for (String bizType : bizTypes)
+        {
+            // 多个文件场景一起删除时取最长保留时间，避免短保留场景提前删除仍需保留的附件
+            maxDelayHours = Math.max(maxDelayHours, storageFileProperties.getDeleteDelayHours(bizType));
+        }
+        return maxDelayHours;
+    }
+
+    /**
+     * 构建文件批量定位信息
+     *
+     * @param urls 文件访问地址集合
+     * @return 文件定位信息集合
+     */
+    private List<SysStorageFile> buildStorageFileKeys(Collection<String> urls)
+    {
+        // 使用 Set 去重，避免同一个 URL 在批量 SQL 中重复出现
+        Set<String> urlSet = normalizeUrlSet(urls);
+        List<SysStorageFile> files = new ArrayList<SysStorageFile>();
+        for (String url : urlSet)
+        {
+            // 每个文件都使用 url_hash + url 双条件定位，避免长 URL 前缀和哈希碰撞问题
+            SysStorageFile file = new SysStorageFile();
+            file.setUrl(url);
+            file.setUrlHash(sha256Hex(url));
+            files.add(file);
+        }
+        return files;
+    }
+
+    /**
+     * 安全获取当前登录用户名
+     *
+     * @return 当前登录用户名，取不到时返回空字符串
+     */
+    private String getCurrentUsernameQuietly()
+    {
+        try
+        {
+            // 普通上传请求有登录上下文，框架内部或定时任务回调可能没有登录上下文
+            return SecurityUtils.getUsername();
+        }
+        catch (Exception e)
+        {
+            return "";
+        }
     }
 
     /**
@@ -417,5 +1121,97 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         // 哈希信息本质是字符串键值 Map，重新包装成 HashInfo 交回框架
         Map<String, String> map = parseMap(json);
         return map == null ? null : new HashInfo(map);
+    }
+
+    /**
+     * 计算 URL 的 SHA-256 哈希
+     *
+     * @param url 文件访问地址
+     * @return 64 位小写十六进制哈希
+     */
+    private String sha256Hex(String url)
+    {
+        // URL 为空时不参与哈希计算，调用方会在进入数据库前完成空值判断
+        if (StringUtils.isBlank(url))
+        {
+            return "";
+        }
+        try
+        {
+            // 使用完整 URL 计算固定长度哈希，避免 varchar 长字段前缀索引误判
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(url.getBytes(StandardCharsets.UTF_8)));
+        }
+        catch (NoSuchAlgorithmException e)
+        {
+            // JDK 标准算法缺失属于运行环境异常，直接抛出避免写入不可查询的数据
+            throw new IllegalStateException("当前运行环境不支持 SHA-256", e);
+        }
+    }
+
+    /**
+     * 构建存储对象Key
+     *
+     * @param basePath 存储基础路径
+     * @param path 文件路径
+     * @param filename 文件名
+     * @return 对象Key
+     */
+    private String buildObjectKey(String basePath, String path, String filename)
+    {
+        if (StringUtils.isBlank(filename))
+        {
+            return null;
+        }
+        // 对象 Key 是平台真实对象定位信息，不包含域名，只由基础路径、文件路径和文件名组成
+        return normalizeObjectKey(basePath) + normalizeObjectKey(path) + filename;
+    }
+
+    /**
+     * 清洗对象Key片段
+     *
+     * @param value 对象Key片段
+     * @return 以 / 结尾的片段
+     */
+    private String normalizeObjectKey(String value)
+    {
+        if (StringUtils.isBlank(value))
+        {
+            return "";
+        }
+        String normalized = value.trim().replace("\\", "/");
+        while (normalized.startsWith("/"))
+        {
+            normalized = normalized.substring(1);
+        }
+        return normalized.endsWith("/") ? normalized : normalized + "/";
+    }
+
+    /**
+     * 根据文件元数据解析访问级别
+     *
+     * @param fileInfo X File Storage 文件信息
+     * @return 访问级别
+     */
+    private String resolveAccess(FileInfo fileInfo)
+    {
+        if (fileInfo == null)
+        {
+            return StorageFileConstants.ACCESS_PRIVATE;
+        }
+        // 优先根据对象 ACL 判断访问级别，避免业务权限长期依赖 public/private 路径命名
+        String fileAcl = String.valueOf(fileInfo.getFileAcl());
+        if (StringUtils.isNotBlank(fileAcl) && fileAcl.contains(StorageFileConstants.ACL_PUBLIC_READ))
+        {
+            return StorageFileConstants.ACCESS_PUBLIC;
+        }
+        String path = fileInfo.getPath();
+        if (StringUtils.isBlank(path))
+        {
+            return StorageFileConstants.ACCESS_PRIVATE;
+        }
+        // 历史数据或平台未返回 ACL 时回退旧路径规则，保证已有文件可平滑升级
+        return path.startsWith(StorageFileConstants.ACCESS_PUBLIC + "/") ? StorageFileConstants.ACCESS_PUBLIC
+                : StorageFileConstants.ACCESS_PRIVATE;
     }
 }
