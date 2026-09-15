@@ -19,12 +19,14 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.config.RuoYiConfig;
 import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.model.StorageFilePartRespDTO;
 import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
+import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.enums.StorageFileAccess;
 import com.ruoyi.common.enums.StorageFileStatus;
 import com.ruoyi.common.exception.ServiceException;
@@ -270,20 +272,22 @@ public class CommonController
     /**
      * 上传大文件分片
      *
-     * @param url 初始化接口返回的文件地址
+     * @param fileId 初始化接口返回的文件ID，优先使用
+     * @param url 初始化接口返回的文件真实地址，仅兼容旧前端
      * @param partNumber 分片编号，从 1 开始
      * @param file 当前分片文件
      * @return 当前分片上传结果
      */
     @PostMapping("/multipart/uploadPart")
-    public AjaxResult uploadPart(@RequestParam("url") String url, @RequestParam("partNumber") Integer partNumber,
+    public AjaxResult uploadPart(@RequestParam(value = "fileId", required = false) Long fileId,
+            @RequestParam(value = "url", required = false) String url, @RequestParam("partNumber") Integer partNumber,
             @RequestParam("file") MultipartFile file)
     {
         try
         {
             // 分片上传成功后框架会回调 FileRecorder.saveFilePart 保存分片记录
-            storageFileService.checkMultipartOwner(url);
-            FilePartInfo filePartInfo = xFileStorageUtils.uploadPart(url, partNumber, file);
+            checkMultipartOwner(fileId, url);
+            FilePartInfo filePartInfo = xFileStorageUtils.uploadPart(getMultipartFileInfo(fileId, url), partNumber, file);
             return AjaxResult.success(StorageFilePartRespDTO.from(filePartInfo));
         }
         catch (Exception e)
@@ -297,21 +301,24 @@ public class CommonController
     /**
      * 查询已经上传的大文件分片
      *
-     * @param url 初始化接口返回的文件地址
+     * @param fileId 初始化接口返回的文件ID，优先使用
+     * @param url 初始化接口返回的文件真实地址，仅兼容旧前端
      * @param maxParts 本次最多返回的分片数量
      * @param partNumberMarker 分页起始分片编号
      * @return 已上传分片列表
      */
     @GetMapping("/multipart/listParts")
-    public AjaxResult listParts(@RequestParam("url") String url,
+    public AjaxResult listParts(@RequestParam(value = "fileId", required = false) Long fileId,
+            @RequestParam(value = "url", required = false) String url,
             @RequestParam(value = "maxParts", required = false) Integer maxParts,
             @RequestParam(value = "partNumberMarker", required = false) Integer partNumberMarker)
     {
         try
         {
             // 部分平台不支持列举分片，具体能力可先调用 support 接口确认
-            storageFileService.checkMultipartOwner(url);
-            FilePartInfoList filePartInfoList = xFileStorageUtils.listParts(url, maxParts, partNumberMarker);
+            checkMultipartOwner(fileId, url);
+            FilePartInfoList filePartInfoList = xFileStorageUtils.listParts(getMultipartFileInfo(fileId, url), maxParts,
+                    partNumberMarker);
             AjaxResult ajax = AjaxResult.success();
             ajax.put("file", buildUploadRespDTO(filePartInfoList.getFileInfo(), null, null));
             ajax.put("partList", toFilePartList(filePartInfoList.getList()));
@@ -332,17 +339,19 @@ public class CommonController
     /**
      * 完成大文件分片上传
      *
-     * @param url 初始化接口返回的文件地址
+     * @param fileId 初始化接口返回的文件ID，优先使用
+     * @param url 初始化接口返回的文件真实地址，仅兼容旧前端
      * @return 合并后的文件信息
      */
     @PostMapping("/multipart/complete")
-    public AjaxResult completeMultipartUpload(@RequestParam("url") String url)
+    public AjaxResult completeMultipartUpload(@RequestParam(value = "fileId", required = false) Long fileId,
+            @RequestParam(value = "url", required = false) String url)
     {
         try
         {
             // 合并成功后框架会更新主文件记录并删除分片记录
-            storageFileService.checkMultipartOwner(url);
-            FileInfo fileInfo = xFileStorageUtils.completeMultipartUpload(url);
+            checkMultipartOwner(fileId, url);
+            FileInfo fileInfo = xFileStorageUtils.completeMultipartUpload(getMultipartFileInfo(fileId, url));
             return AjaxResult.success(buildUploadRespDTO(fileInfo, null, null));
         }
         catch (Exception e)
@@ -356,17 +365,19 @@ public class CommonController
     /**
      * 取消大文件分片上传
      *
-     * @param url 初始化接口返回的文件地址
+     * @param fileId 初始化接口返回的文件ID，优先使用
+     * @param url 初始化接口返回的文件真实地址，仅兼容旧前端
      * @return 取消后的文件信息
      */
     @PostMapping("/multipart/abort")
-    public AjaxResult abortMultipartUpload(@RequestParam("url") String url)
+    public AjaxResult abortMultipartUpload(@RequestParam(value = "fileId", required = false) Long fileId,
+            @RequestParam(value = "url", required = false) String url)
     {
         try
         {
             // 取消成功后框架会通知平台释放未合并分片
-            storageFileService.checkMultipartOwner(url);
-            FileInfo fileInfo = xFileStorageUtils.abortMultipartUpload(url);
+            checkMultipartOwner(fileId, url);
+            FileInfo fileInfo = xFileStorageUtils.abortMultipartUpload(getMultipartFileInfo(fileId, url));
             return AjaxResult.success(buildUploadRespDTO(fileInfo, null, null));
         }
         catch (Exception e)
@@ -437,11 +448,62 @@ public class CommonController
      * @param response 响应对象
      */
     @RequestMapping(value = "/file/download/{fileId}", method = { RequestMethod.GET, RequestMethod.POST })
+    @Log(title = "存储文件下载", businessType = BusinessType.EXPORT)
     public void downloadStorageFile(@PathVariable Long fileId,
             @RequestParam(value = "token", required = false) String accessToken, HttpServletResponse response)
     {
         // 公共下载入口统一输出文件流，私有业务文件必须带业务接口签发的短期 token
         writeStorageFile(fileId, false, true, accessToken, response);
+    }
+
+    /**
+     * 获取分片上传会话文件信息
+     *
+     * @param fileId 文件ID，优先使用
+     * @param url 文件真实地址，仅兼容旧前端
+     * @return X File Storage 文件信息
+     */
+    private FileInfo getMultipartFileInfo(Long fileId, String url)
+    {
+        // fileId 不受代理 URL、临时 token 或访问域名变更影响，作为分片后续操作的主定位条件
+        if (fileId != null)
+        {
+            SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
+            if (storageFile == null)
+            {
+                throw new ServiceException("文件记录不存在");
+            }
+            FileInfo fileInfo = storageFileService.toFileInfo(storageFile);
+            if (fileInfo == null)
+            {
+                throw new ServiceException("文件记录不存在");
+            }
+            return fileInfo;
+        }
+        // 旧前端只传 url 时仍允许按 URL 还原 FileInfo
+        if (StringUtils.isBlank(url))
+        {
+            throw new ServiceException("文件ID不能为空");
+        }
+        return xFileStorageUtils.getFileInfoByUrl(url);
+    }
+
+    /**
+     * 校验分片上传会话归属
+     *
+     * @param fileId 文件ID，优先使用
+     * @param url 文件真实地址，仅兼容旧前端
+     */
+    private void checkMultipartOwner(Long fileId, String url)
+    {
+        // 新前端按 fileId 校验，避免代理 URL 无法反查真实上传记录
+        if (fileId != null)
+        {
+            storageFileService.checkMultipartOwner(fileId);
+            return;
+        }
+        // 旧前端保留 URL 校验能力
+        storageFileService.checkMultipartOwner(url);
     }
 
     /**

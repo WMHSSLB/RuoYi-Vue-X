@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * <p>
  * 用于控制哪些 X File Storage 访问路径允许匿名访问
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component
 @ConfigurationProperties(prefix = "ruoyi.storage-file")

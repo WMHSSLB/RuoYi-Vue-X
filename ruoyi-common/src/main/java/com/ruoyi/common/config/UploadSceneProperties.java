@@ -13,7 +13,7 @@ import com.ruoyi.common.utils.StringUtils;
  * <p>
  * 用于让同一个通用上传接口根据不同业务场景使用不同大小、格式和缩略图规则
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component
 @ConfigurationProperties(prefix = "ruoyi")

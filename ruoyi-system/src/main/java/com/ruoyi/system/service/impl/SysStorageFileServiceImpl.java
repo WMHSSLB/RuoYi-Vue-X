@@ -45,7 +45,7 @@ import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
  * <p>
  * 该类同时实现 X File Storage 的 FileRecorder 接口，让上传记录真正落到 sys_storage_file
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Service
 public class SysStorageFileServiceImpl implements ISysStorageFileService
@@ -401,9 +401,26 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
      * @param url 文件访问地址
      */
     @Override
+    public void checkMultipartOwner(Long fileId)
+    {
+        // fileId 是分片后续操作的推荐定位条件，不受代理 URL 和访问域名变化影响
+        checkMultipartOwner(selectStorageFileById(fileId));
+    }
+
+    @Override
     public void checkMultipartOwner(String url)
     {
-        SysStorageFile storageFile = selectStorageFileByUrl(url);
+        // URL 版本保留给旧前端和旧调用方兼容使用
+        checkMultipartOwner(selectStorageFileByUrl(url));
+    }
+
+    /**
+     * 校验分片上传会话是否属于当前登录用户
+     *
+     * @param storageFile 存储文件记录
+     */
+    private void checkMultipartOwner(SysStorageFile storageFile)
+    {
         if (storageFile == null)
         {
             throw new ServiceException("文件记录不存在");

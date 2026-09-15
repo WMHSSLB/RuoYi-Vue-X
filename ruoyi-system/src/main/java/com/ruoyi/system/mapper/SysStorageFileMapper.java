@@ -8,7 +8,7 @@ import com.ruoyi.system.domain.SysStorageFile;
 /**
  * 存储文件记录 数据层
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface SysStorageFileMapper
 {

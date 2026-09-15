@@ -7,7 +7,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 /**
  * 业务文件生命周期服务
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface IBusinessStorageFileService
 {

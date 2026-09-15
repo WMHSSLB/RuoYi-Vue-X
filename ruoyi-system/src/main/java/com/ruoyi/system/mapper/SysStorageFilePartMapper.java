@@ -6,7 +6,7 @@ import com.ruoyi.system.domain.SysStorageFilePart;
 /**
  * 存储文件分片记录 数据层
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface SysStorageFilePartMapper
 {

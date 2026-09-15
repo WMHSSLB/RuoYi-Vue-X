@@ -14,7 +14,7 @@ import com.ruoyi.system.service.ISysStorageFileService;
  * <p>
  * 定时清理超时临时文件和已经到期的待删除文件，避免对象存储长期堆积孤儿文件
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component("storageFileTask")
 public class StorageFileTask

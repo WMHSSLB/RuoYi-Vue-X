@@ -12,7 +12,7 @@ import com.ruoyi.system.domain.SysStorageFile;
  * <p>
  * 同时实现 X File Storage 的 FileRecorder 接口，用于保存上传记录、分片记录和业务文件生命周期状态
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface ISysStorageFileService extends FileRecorder
 {
@@ -112,6 +112,13 @@ public interface ISysStorageFileService extends FileRecorder
      */
     public int syncBizStorageFilesByIds(Collection<Long> newFileIds, Collection<Long> oldFileIds, String bizType,
             String bizId, String updateBy);
+
+    /**
+     * 校验分片上传会话是否属于当前登录用户
+     *
+     * @param fileId 文件ID
+     */
+    public void checkMultipartOwner(Long fileId);
 
     /**
      * 校验分片上传会话是否属于当前登录用户

@@ -10,30 +10,24 @@ import com.ruoyi.common.core.domain.BaseEntity;
  * <p>
  * 类名避免使用 SysFile，防止和若依服务监控模块的磁盘信息类产生 MyBatis 别名冲突
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public class SysStorageFile extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
 
     /**
-
      * 文件ID
-
      */
     private Long fileId;
 
     /**
-
      * X File Storage 内部文件ID，由框架生成或由存储平台返回
-
      */
     private String storageId;
 
     /**
-
      * 原图访问地址
-
      */
     private String url;
 
@@ -53,72 +47,52 @@ public class SysStorageFile extends BaseEntity
     private String access;
 
     /**
-
      * 原图大小，单位字节
-
      */
     private Long size;
 
     /**
-
      * 原图文件名
-
      */
     private String filename;
 
     /**
-
      * 原始文件名
-
      */
     private String originalFilename;
 
     /**
-
      * 存储基础路径
-
      */
     private String basePath;
 
     /**
-
      * 文件路径
-
      */
     private String path;
 
     /**
-
      * 文件扩展名
-
      */
     private String ext;
 
     /**
-
      * 文件内容类型
-
      */
     private String contentType;
 
     /**
-
      * 存储平台
-
      */
     private String platform;
 
     /**
-
      * 缩略图访问地址
-
      */
     private String thUrl;
 
     /**
-
      * 缩略图文件名
-
      */
     private String thFilename;
 
@@ -128,128 +102,92 @@ public class SysStorageFile extends BaseEntity
     private String thObjectKey;
 
     /**
-
      * 缩略图大小，单位字节
-
      */
     private Long thSize;
 
     /**
-
      * 缩略图内容类型
-
      */
     private String thContentType;
 
     /**
-
      * X File Storage 关联对象ID，框架扩展字段，不等同于本系统 bizId
-
      */
     private String objectId;
 
     /**
-
      * X File Storage 关联对象类型，框架扩展字段，不等同于本系统 bizType
-
      */
     private String objectType;
 
     /**
-
      * 原图存储平台元数据JSON，例如对象存储 Header 或自定义元信息
-
      */
     private String metadata;
 
     /**
-
      * 原图用户自定义元数据JSON，例如上传方传入的业务扩展元信息
-
      */
     private String userMetadata;
 
     /**
-
      * 缩略图存储平台元数据JSON
-
      */
     private String thMetadata;
 
     /**
-
      * 缩略图用户自定义元数据JSON
-
      */
     private String thUserMetadata;
 
     /**
-
      * X File Storage 附加属性JSON，只用于程序内部扩展，不会写入对象存储元数据
-
      */
     private String attr;
 
     /**
-
      * 原图访问控制ACL JSON，例如私有、公共读或平台专有权限配置
-
      */
     private String fileAcl;
 
     /**
-
      * 缩略图访问控制ACL JSON
-
      */
     private String thFileAcl;
 
     /**
-
      * 原图哈希信息JSON，例如 MD5、SHA1、SHA256 等摘要结果
-
      */
     private String hashInfo;
 
     /**
-
      * 分片上传ID
-
      */
     private String uploadId;
 
     /**
-
      * 分片上传状态
-
      */
     private Integer uploadStatus;
 
     /**
-
      * 文件状态（0临时 1已使用 2待删除 3已删除）
-
      */
     private String fileStatus;
 
     /**
-
      * 业务类型
-
      */
     private String bizType;
 
     /**
-
      * 业务ID
-
      */
     private String bizId;
 
     /**
-
      * 删除时间
-
      */
     private LocalDateTime deleteTime;
 

@@ -29,7 +29,7 @@ import com.ruoyi.common.utils.uuid.IdUtils;
  * <p>
  * 控制器优先调用该工具，集中维护平台选择、上传校验、文件命名、场景路径、ACL、缩略图和分片上传逻辑
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component
 public class XFileStorageUtils
@@ -400,6 +400,20 @@ public class XFileStorageUtils
      */
     public FilePartInfo uploadPart(String url, Integer partNumber, MultipartFile file)
     {
+        // URL 版本保留给旧前端，内部统一转为 FileInfo 版本
+        return uploadPart(getRequiredFileInfo(url), partNumber, file);
+    }
+
+    /**
+     * 上传大文件分片
+     *
+     * @param fileInfo 分片上传文件信息
+     * @param partNumber 分片编号，从 1 开始
+     * @param file 当前分片文件
+     * @return 已上传的分片信息
+     */
+    public FilePartInfo uploadPart(FileInfo fileInfo, Integer partNumber, MultipartFile file)
+    {
         // 分片编号从 1 开始，非法编号直接拒绝
         if (partNumber == null || partNumber <= 0)
         {
@@ -410,10 +424,10 @@ public class XFileStorageUtils
         {
             throw new IllegalArgumentException("分片文件不能为空");
         }
-        // 从数据库记录按 URL 还原 FileInfo，里面包含平台、路径和 uploadId
-        FileInfo fileInfo = getRequiredFileInfo(url);
+        // FileInfo 里面包含平台、路径和 uploadId，fileId 调用方可以避免代理 URL 反查失败
+        FileInfo requiredFileInfo = getRequiredFileInfo(fileInfo);
         // 上传当前分片，框架成功后会通过 FileRecorder.saveFilePart 保存分片记录
-        return fileStorageService.uploadPart(fileInfo, partNumber, file, file.getSize()).upload();
+        return fileStorageService.uploadPart(requiredFileInfo, partNumber, file, file.getSize()).upload();
     }
 
     /**
@@ -426,10 +440,24 @@ public class XFileStorageUtils
      */
     public FilePartInfoList listParts(String url, Integer maxParts, Integer partNumberMarker)
     {
-        // 从数据库记录按 URL 还原 FileInfo，里面包含平台、路径和 uploadId
-        FileInfo fileInfo = getRequiredFileInfo(url);
+        // URL 版本保留给旧前端，内部统一转为 FileInfo 版本
+        return listParts(getRequiredFileInfo(url), maxParts, partNumberMarker);
+    }
+
+    /**
+     * 查询已经上传的分片列表
+     *
+     * @param fileInfo 分片上传文件信息
+     * @param maxParts 最多返回的分片数量
+     * @param partNumberMarker 分页起始分片编号
+     * @return 分片列表
+     */
+    public FilePartInfoList listParts(FileInfo fileInfo, Integer maxParts, Integer partNumberMarker)
+    {
+        // FileInfo 里面包含平台、路径和 uploadId，fileId 调用方可以避免代理 URL 反查失败
+        FileInfo requiredFileInfo = getRequiredFileInfo(fileInfo);
         // 构造列举请求，由框架根据平台能力决定是否支持
-        ListPartsPretreatment listParts = fileStorageService.listParts(fileInfo);
+        ListPartsPretreatment listParts = fileStorageService.listParts(requiredFileInfo);
         if (maxParts != null && maxParts > 0)
         {
             // 设置本次最多返回的分片数量
@@ -451,10 +479,22 @@ public class XFileStorageUtils
      */
     public FileInfo completeMultipartUpload(String url)
     {
-        // 从数据库记录按 URL 还原 FileInfo，里面包含平台、路径和 uploadId
-        FileInfo fileInfo = getRequiredFileInfo(url);
+        // URL 版本保留给旧前端，内部统一转为 FileInfo 版本
+        return completeMultipartUpload(getRequiredFileInfo(url));
+    }
+
+    /**
+     * 完成手动分片上传
+     *
+     * @param fileInfo 分片上传文件信息
+     * @return 合并后的文件信息
+     */
+    public FileInfo completeMultipartUpload(FileInfo fileInfo)
+    {
+        // FileInfo 里面包含平台、路径和 uploadId，fileId 调用方可以避免代理 URL 反查失败
+        FileInfo requiredFileInfo = getRequiredFileInfo(fileInfo);
         // 通知存储平台合并分片，成功后框架会更新主文件记录并清理分片记录
-        return fileStorageService.completeMultipartUpload(fileInfo).complete();
+        return fileStorageService.completeMultipartUpload(requiredFileInfo).complete();
     }
 
     /**
@@ -465,10 +505,22 @@ public class XFileStorageUtils
      */
     public FileInfo abortMultipartUpload(String url)
     {
-        // 从数据库记录按 URL 还原 FileInfo，里面包含平台、路径和 uploadId
-        FileInfo fileInfo = getRequiredFileInfo(url);
+        // URL 版本保留给旧前端，内部统一转为 FileInfo 版本
+        return abortMultipartUpload(getRequiredFileInfo(url));
+    }
+
+    /**
+     * 取消手动分片上传
+     *
+     * @param fileInfo 分片上传文件信息
+     * @return 取消后的文件信息
+     */
+    public FileInfo abortMultipartUpload(FileInfo fileInfo)
+    {
+        // FileInfo 里面包含平台、路径和 uploadId，fileId 调用方可以避免代理 URL 反查失败
+        FileInfo requiredFileInfo = getRequiredFileInfo(fileInfo);
         // 通知存储平台取消分片上传，成功后框架会清理分片记录
-        return fileStorageService.abortMultipartUpload(fileInfo).abort();
+        return fileStorageService.abortMultipartUpload(requiredFileInfo).abort();
     }
 
     /**
@@ -783,6 +835,26 @@ public class XFileStorageUtils
             throw new IllegalArgumentException("文件记录不存在");
         }
         // 分片上传后续操作必须依赖 uploadId
+        if (StringUtils.isBlank(fileInfo.getUploadId()))
+        {
+            throw new IllegalArgumentException("文件不是有效的分片上传会话");
+        }
+        return fileInfo;
+    }
+
+    /**
+     * 获取必须存在且带 uploadId 的分片文件信息
+     *
+     * @param fileInfo 文件信息
+     * @return 文件信息
+     */
+    private FileInfo getRequiredFileInfo(FileInfo fileInfo)
+    {
+        // fileId 链路已经在业务层查出 FileInfo，这里只做分片会话必要字段校验
+        if (fileInfo == null)
+        {
+            throw new IllegalArgumentException("文件记录不存在");
+        }
         if (StringUtils.isBlank(fileInfo.getUploadId()))
         {
             throw new IllegalArgumentException("文件不是有效的分片上传会话");

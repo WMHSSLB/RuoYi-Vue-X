@@ -9,7 +9,7 @@ import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
  * 业务文件字段定义
  *
  * @param <T> 业务实体类型
- * @author ruoyi
+ * @author 955Kane
  */
 public class BusinessStorageFileField<T>
 {

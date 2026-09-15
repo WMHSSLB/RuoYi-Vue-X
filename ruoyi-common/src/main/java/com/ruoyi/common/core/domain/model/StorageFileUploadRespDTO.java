@@ -41,6 +41,8 @@ public class StorageFileUploadRespDTO
 
     /**
      * 兼容若依上传组件的文件地址字段
+     * <p>
+     * 展示名称请使用 originalFilename，保存后的文件名请使用 newFileName
      */
     private String fileName;
 

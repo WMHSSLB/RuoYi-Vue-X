@@ -9,9 +9,9 @@ import com.ruoyi.common.utils.StringUtils;
 /**
  * 存储文件管理配置
  * <p>
- * 用于控制临时文件过期时间，以及不同业务类型旧文件进入待删除后的保留时间
+ * 用于控制临时文件过期时间、私有文件授权有效期，以及不同业务旧文件进入待删除后的保留时间
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component
 @ConfigurationProperties(prefix = "ruoyi.storage-file")
@@ -57,16 +57,12 @@ public class StorageFileProperties
     private int accessTokenExpireSeconds = 300;
 
     /**
-
      * 默认待删除延迟小时数
-
      */
     private int defaultDeleteDelayHours = 24;
 
     /**
-
      * 业务类型对应的待删除延迟小时数
-
      */
     private Map<String, Integer> deleteDelayHours = new HashMap<>();
 

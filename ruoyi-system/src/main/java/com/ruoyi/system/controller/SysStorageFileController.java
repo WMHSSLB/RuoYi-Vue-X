@@ -93,6 +93,7 @@ public class SysStorageFileController extends BaseController
      */
     @PreAuthorize("@ss.hasPermi(T(com.ruoyi.common.constant.StorageFileConstants).PERMISSION_STORAGE_DOWNLOAD)")
     @GetMapping("/download/{fileId}")
+    @Log(title = "存储文件下载", businessType = BusinessType.EXPORT)
     public void download(@PathVariable Long fileId, HttpServletResponse response)
     {
         SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
