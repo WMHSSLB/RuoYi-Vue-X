@@ -413,7 +413,7 @@ public class CommonController
     /**
      * 通过文件ID预览文件
      * <p>
-     * 公开文件允许匿名访问，私有文件必须携带登录令牌并通过通用下载规则
+     * 公开文件允许匿名访问，业务私有文件必须携带业务查询接口签发的短期 token
      *
      * @param fileId 文件ID
      * @param thumbnail true 表示预览缩略图
@@ -431,7 +431,7 @@ public class CommonController
     /**
      * 通过文件ID下载文件
      * <p>
-     * 公开文件允许匿名下载，私有文件必须携带登录令牌并通过通用下载规则
+     * 公开文件允许匿名下载，业务私有文件必须携带业务查询接口签发的短期 token
      *
      * @param fileId 文件ID
      * @param response 响应对象
@@ -623,6 +623,9 @@ public class CommonController
 
     /**
      * 写出文件内容
+     * <p>
+     * 该方法只负责统一校验访问 token、构造 FileInfo 并输出文件流，不判断具体业务菜单权限和数据权限
+     * 普通业务私有文件的业务权限应在列表或详情接口里完成，文件 token 也只能由这些业务查询接口签发
      *
      * @param fileId 文件ID
      * @param thumbnail true 表示写出缩略图

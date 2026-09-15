@@ -1,6 +1,5 @@
 package com.ruoyi.system.service.impl;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.ruoyi.common.annotation.StorageFileField;
 import com.ruoyi.common.core.domain.BaseEntity;
 import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -31,45 +29,20 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
     private ISysStorageFileService storageFileService;
 
     /**
-     * 根据实体字段注解填充单条业务数据的文件回显列表
+     * 填充单条业务数据的文件回显列表
      *
      * @param business 业务数据
+     * @param fields 业务文件字段定义
      * @param <T> 业务实体类型
      */
     @Override
-    public <T> void fillStorageFileList(T business)
+    public <T> void fillStorageFileList(T business, Collection<BusinessStorageFileField<T>> fields)
     {
-        if (business == null)
-        {
-            return;
-        }
-        fillStorageFileListByFields(business, resolveStorageFileFields(business.getClass()));
+        fillStorageFileListByFields(business, fields);
     }
 
     /**
-     * 根据实体字段注解填充业务列表的文件回显列表
-     *
-     * @param businesses 业务数据列表
-     * @param <T> 业务实体类型
-     */
-    @Override
-    public <T> void fillStorageFileList(Collection<T> businesses)
-    {
-        if (businesses == null || businesses.isEmpty())
-        {
-            return;
-        }
-        T firstBusiness = findFirstBusiness(businesses);
-        if (firstBusiness == null)
-        {
-            return;
-        }
-        // 同一页列表通常是同一种业务实体，字段注解只解析一次
-        fillStorageFileListBatchByFields(businesses, resolveStorageFileFields(firstBusiness.getClass()));
-    }
-
-    /**
-     * 填充单条业务数据的文件回显列表
+     * 按显式字段定义填充单条业务数据的文件回显列表
      *
      * @param business 业务数据
      * @param fields 业务文件字段定义
@@ -101,7 +74,21 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
      * @param fields 业务文件字段定义
      * @param <T> 业务实体类型
      */
-    private <T> void fillStorageFileListBatchByFields(Collection<T> businesses, Collection<BusinessStorageFileField<T>> fields)
+    @Override
+    public <T> void fillStorageFileList(Collection<T> businesses, Collection<BusinessStorageFileField<T>> fields)
+    {
+        fillStorageFileListBatchByFields(businesses, fields);
+    }
+
+    /**
+     * 按显式字段定义填充业务列表的文件回显列表
+     *
+     * @param businesses 业务数据列表
+     * @param fields 业务文件字段定义
+     * @param <T> 业务实体类型
+     */
+    private <T> void fillStorageFileListBatchByFields(Collection<T> businesses,
+            Collection<BusinessStorageFileField<T>> fields)
     {
         if (businesses == null || businesses.isEmpty() || fields == null || fields.isEmpty())
         {
@@ -137,7 +124,8 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
      * @param <T> 业务实体类型
      * @return 影响行数
      */
-    private <T> int bindStorageFiles(T business, String bizId, Collection<BusinessStorageFileField<T>> fields,
+    @Override
+    public <T> int bindStorageFiles(T business, String bizId, Collection<BusinessStorageFileField<T>> fields,
             String updateBy)
     {
         if (business == null || StringUtils.isBlank(bizId) || fields == null || fields.isEmpty())
@@ -159,25 +147,6 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
     }
 
     /**
-     * 根据实体字段注解绑定业务数据中的文件ID
-     *
-     * @param business 业务数据
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @param <T> 业务实体类型
-     * @return 影响行数
-     */
-    @Override
-    public <T> int bindStorageFiles(T business, String bizId, String updateBy)
-    {
-        if (business == null)
-        {
-            return 0;
-        }
-        return bindStorageFiles(business, bizId, resolveStorageFileFields(business.getClass()), updateBy);
-    }
-
-    /**
      * 同步业务修改前后的文件ID
      *
      * @param newBusiness 修改后的业务数据
@@ -188,7 +157,8 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
      * @param <T> 业务实体类型
      * @return 影响行数
      */
-    private <T> int syncStorageFiles(T newBusiness, T oldBusiness, String bizId,
+    @Override
+    public <T> int syncStorageFiles(T newBusiness, T oldBusiness, String bizId,
             Collection<BusinessStorageFileField<T>> fields, String updateBy)
     {
         if (newBusiness == null || oldBusiness == null || StringUtils.isBlank(bizId) || fields == null || fields.isEmpty())
@@ -208,26 +178,6 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
             rows += storageFileService.syncBizStorageFilesByIds(newFileIds, oldFileIds, field.getBizType(), bizId, updateBy);
         }
         return rows;
-    }
-
-    /**
-     * 根据实体字段注解同步业务修改前后的文件ID
-     *
-     * @param newBusiness 修改后的业务数据
-     * @param oldBusiness 修改前的业务数据
-     * @param bizId 业务ID
-     * @param updateBy 更新者
-     * @param <T> 业务实体类型
-     * @return 影响行数
-     */
-    @Override
-    public <T> int syncStorageFiles(T newBusiness, T oldBusiness, String bizId, String updateBy)
-    {
-        if (newBusiness == null)
-        {
-            return 0;
-        }
-        return syncStorageFiles(newBusiness, oldBusiness, bizId, resolveStorageFileFields(newBusiness.getClass()), updateBy);
     }
 
     /**
@@ -272,38 +222,11 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
      * @param <T> 业务实体类型
      * @return 影响行数
      */
-    private <T> int markStorageFilesWaitDeleteByBiz(Object[] bizIds, Collection<BusinessStorageFileField<T>> fields,
+    @Override
+    public <T> int markStorageFilesWaitDeleteByBiz(Object[] bizIds, Collection<BusinessStorageFileField<T>> fields,
             String updateBy)
     {
         return markStorageFilesWaitDeleteByBiz(toBizIdList(bizIds), fields, updateBy);
-    }
-
-    /**
-     * 根据实体字段注解按业务ID数组标记业务下所有文件为待删除
-     *
-     * @param bizIds 业务ID数组
-     * @param businessClass 业务实体类型
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Override
-    public int markStorageFilesWaitDeleteByBiz(Object[] bizIds, Class<?> businessClass, String updateBy)
-    {
-        return markStorageFilesWaitDeleteByBiz(toBizIdList(bizIds), businessClass, updateBy);
-    }
-
-    /**
-     * 根据实体字段注解按业务ID集合标记业务下所有文件为待删除
-     *
-     * @param bizIds 业务ID集合
-     * @param businessClass 业务实体类型
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    @Override
-    public int markStorageFilesWaitDeleteByBiz(Collection<String> bizIds, Class<?> businessClass, String updateBy)
-    {
-        return markStorageFilesWaitDeleteByBiz(bizIds, resolveStorageFileFields(businessClass), updateBy);
     }
 
     /**
@@ -412,29 +335,6 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
     }
 
     /**
-     * 查找第一条非空业务数据
-     *
-     * @param businesses 业务数据列表
-     * @param <T> 业务实体类型
-     * @return 第一条非空业务数据
-     */
-    private <T> T findFirstBusiness(Collection<T> businesses)
-    {
-        if (businesses == null || businesses.isEmpty())
-        {
-            return null;
-        }
-        for (T business : businesses)
-        {
-            if (business != null)
-            {
-                return business;
-            }
-        }
-        return null;
-    }
-
-    /**
      * 批量构造文件授权信息 Map
      *
      * @param businesses 业务数据列表
@@ -525,144 +425,6 @@ public class BusinessStorageFileServiceImpl implements IBusinessStorageFileServi
             }
         }
         return fileList;
-    }
-
-    /**
-     * 根据实体注解解析业务文件字段
-     *
-     * @param businessClass 业务实体类型
-     * @param <T> 业务实体类型
-     * @return 业务文件字段定义
-     */
-    private <T> List<BusinessStorageFileField<T>> resolveStorageFileFields(Class<?> businessClass)
-    {
-        List<BusinessStorageFileField<T>> result = new ArrayList<BusinessStorageFileField<T>>();
-        if (businessClass == null)
-        {
-            return result;
-        }
-        for (Field fileField : getAllFields(businessClass))
-        {
-            StorageFileField annotation = fileField.getAnnotation(StorageFileField.class);
-            if (annotation == null)
-            {
-                continue;
-            }
-            fileField.setAccessible(true);
-            Field listField = findField(businessClass, StringUtils.isBlank(annotation.listField())
-                    ? fileField.getName() + "List" : annotation.listField());
-            if (listField != null)
-            {
-                listField.setAccessible(true);
-            }
-            Field finalFileField = fileField;
-            Field finalListField = listField;
-            // 注解只声明字段语义，运行时转换成统一字段定义复用原有通用处理流程
-            result.add(BusinessStorageFileField.of(annotation.bizType(),
-                    business -> getStringFieldValue(business, finalFileField),
-                    (business, fileList) -> setFileListFieldValue(business, finalListField, fileList)));
-        }
-        return result;
-    }
-
-    /**
-     * 获取类及父类字段
-     *
-     * @param businessClass 业务实体类型
-     * @return 字段集合
-     */
-    private List<Field> getAllFields(Class<?> businessClass)
-    {
-        List<Field> fields = new ArrayList<Field>();
-        Class<?> currentClass = businessClass;
-        while (currentClass != null && currentClass != Object.class)
-        {
-            Field[] declaredFields = currentClass.getDeclaredFields();
-            for (Field field : declaredFields)
-            {
-                // 父类和当前类字段都参与扫描，便于后续文件字段定义在业务基类中
-                fields.add(field);
-            }
-            currentClass = currentClass.getSuperclass();
-        }
-        return fields;
-    }
-
-    /**
-     * 按字段名查找字段
-     *
-     * @param businessClass 业务实体类型
-     * @param fieldName 字段名
-     * @return 字段对象
-     */
-    private Field findField(Class<?> businessClass, String fieldName)
-    {
-        if (businessClass == null || StringUtils.isBlank(fieldName))
-        {
-            return null;
-        }
-        Class<?> currentClass = businessClass;
-        while (currentClass != null && currentClass != Object.class)
-        {
-            try
-            {
-                return currentClass.getDeclaredField(fieldName);
-            }
-            catch (NoSuchFieldException e)
-            {
-                // 当前类没有该字段时继续向父类查找
-                currentClass = currentClass.getSuperclass();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 读取文件ID字段值
-     *
-     * @param business 业务数据
-     * @param fileField 文件ID字段
-     * @return 文件ID字符串
-     */
-    private String getStringFieldValue(Object business, Field fileField)
-    {
-        if (business == null || fileField == null)
-        {
-            return null;
-        }
-        try
-        {
-            Object value = fileField.get(business);
-            return value == null ? null : String.valueOf(value);
-        }
-        catch (IllegalAccessException e)
-        {
-            return null;
-        }
-    }
-
-    /**
-     * 写入文件回显列表字段
-     *
-     * @param business 业务数据
-     * @param listField 文件回显列表字段
-     * @param fileList 文件回显列表
-     */
-    private void setFileListFieldValue(Object business, Field listField, List<StorageFileUploadRespDTO> fileList)
-    {
-        if (business == null || listField == null)
-        {
-            return;
-        }
-        try
-        {
-            // 约定 file1 对应 file1List，字段不存在时跳过，避免强制每个文件字段都必须返回列表
-            listField.set(business, fileList);
-        }
-        catch (IllegalAccessException e)
-        {
-            // 反射写入失败时不影响主业务查询，文件字段保持原值
-        }
     }
 
     /**

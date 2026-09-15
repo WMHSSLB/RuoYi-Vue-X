@@ -12,63 +12,61 @@ import com.ruoyi.common.core.domain.BaseEntity;
 public interface IBusinessStorageFileService
 {
     /**
-     * 根据实体字段注解填充单条业务数据的文件回显列表
+     * 根据显式文件字段映射填充单条业务数据的文件回显列表
      *
-     * @param business 业务数据
-     * @param <T> 业务实体类型
+     * @param business 业务返回对象
+     * @param fields 业务文件字段映射
+     * @param <T> 业务返回对象类型
      */
-    public <T> void fillStorageFileList(T business);
+    public <T> void fillStorageFileList(T business, Collection<BusinessStorageFileField<T>> fields);
 
     /**
-     * 根据实体字段注解填充业务列表的文件回显列表
+     * 根据显式文件字段映射填充业务列表的文件回显列表
      *
-     * @param businesses 业务数据列表
-     * @param <T> 业务实体类型
+     * @param businesses 业务返回对象列表
+     * @param fields 业务文件字段映射
+     * @param <T> 业务返回对象类型
      */
-    public <T> void fillStorageFileList(Collection<T> businesses);
+    public <T> void fillStorageFileList(Collection<T> businesses, Collection<BusinessStorageFileField<T>> fields);
 
     /**
-     * 根据实体字段注解绑定业务数据中的文件ID
+     * 根据显式文件字段映射绑定业务数据中的文件ID
      *
      * @param business 业务数据
      * @param bizId 业务ID
+     * @param fields 业务文件字段映射
      * @param updateBy 更新者
      * @param <T> 业务实体类型
      * @return 影响行数
      */
-    public <T> int bindStorageFiles(T business, String bizId, String updateBy);
+    public <T> int bindStorageFiles(T business, String bizId, Collection<BusinessStorageFileField<T>> fields,
+            String updateBy);
 
     /**
-     * 根据实体字段注解同步业务修改前后的文件ID
+     * 根据显式文件字段映射同步业务修改前后的文件ID
      *
      * @param newBusiness 修改后的业务数据
      * @param oldBusiness 修改前的业务数据
      * @param bizId 业务ID
+     * @param fields 业务文件字段映射
      * @param updateBy 更新者
      * @param <T> 业务实体类型
      * @return 影响行数
      */
-    public <T> int syncStorageFiles(T newBusiness, T oldBusiness, String bizId, String updateBy);
+    public <T> int syncStorageFiles(T newBusiness, T oldBusiness, String bizId,
+            Collection<BusinessStorageFileField<T>> fields, String updateBy);
 
     /**
-     * 根据实体字段注解按业务ID数组标记业务下所有文件为待删除
+     * 根据显式文件字段映射按业务ID数组标记业务下所有文件为待删除
      *
      * @param bizIds 业务ID数组
-     * @param businessClass 业务实体类型
+     * @param fields 业务文件字段映射
      * @param updateBy 更新者
+     * @param <T> 业务实体类型
      * @return 影响行数
      */
-    public int markStorageFilesWaitDeleteByBiz(Object[] bizIds, Class<?> businessClass, String updateBy);
-
-    /**
-     * 根据实体字段注解按业务ID集合标记业务下所有文件为待删除
-     *
-     * @param bizIds 业务ID集合
-     * @param businessClass 业务实体类型
-     * @param updateBy 更新者
-     * @return 影响行数
-     */
-    public int markStorageFilesWaitDeleteByBiz(Collection<String> bizIds, Class<?> businessClass, String updateBy);
+    public <T> int markStorageFilesWaitDeleteByBiz(Object[] bizIds, Collection<BusinessStorageFileField<T>> fields,
+            String updateBy);
 
     /**
      * 解析逗号分隔的文件ID
