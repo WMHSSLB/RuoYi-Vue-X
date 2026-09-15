@@ -27,16 +27,14 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.domain.model.StorageFilePartRespDTO;
 import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
 import com.ruoyi.common.enums.BusinessType;
-import com.ruoyi.common.enums.StorageFileAccess;
-import com.ruoyi.common.enums.StorageFileStatus;
 import com.ruoyi.common.exception.ServiceException;
-import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.common.utils.file.FileUtils;
 import com.ruoyi.common.utils.file.MimeTypeUtils;
 import com.ruoyi.common.utils.file.XFileStorageUtils;
 import com.ruoyi.system.domain.SysStorageFile;
 import com.ruoyi.system.service.ISysStorageFileService;
+import com.ruoyi.system.service.StorageFileAccessPolicyService;
 import com.ruoyi.system.service.StorageFileAccessTokenService;
 import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
 
@@ -74,20 +72,29 @@ public class CommonController
     private final StorageFileAccessTokenService storageFileAccessTokenService;
 
     /**
+     * 存储文件访问权限策略服务
+     */
+    private final StorageFileAccessPolicyService storageFileAccessPolicyService;
+
+    /**
      * 构造通用文件控制器
      *
      * @param xFileStorageUtils 统一上传工具
      * @param storageFileService 存储文件记录服务
      * @param storageFileAccessUrlBuilder 文件对外访问地址构建器
      * @param storageFileAccessTokenService 存储文件短期访问授权服务
+     * @param storageFileAccessPolicyService 存储文件访问权限策略服务
      */
     public CommonController(XFileStorageUtils xFileStorageUtils, ISysStorageFileService storageFileService,
-            StorageFileAccessUrlBuilder storageFileAccessUrlBuilder, StorageFileAccessTokenService storageFileAccessTokenService)
+            StorageFileAccessUrlBuilder storageFileAccessUrlBuilder,
+            StorageFileAccessTokenService storageFileAccessTokenService,
+            StorageFileAccessPolicyService storageFileAccessPolicyService)
     {
         this.xFileStorageUtils = xFileStorageUtils;
         this.storageFileService = storageFileService;
         this.storageFileAccessUrlBuilder = storageFileAccessUrlBuilder;
         this.storageFileAccessTokenService = storageFileAccessTokenService;
+        this.storageFileAccessPolicyService = storageFileAccessPolicyService;
     }
 
     /**
@@ -529,104 +536,6 @@ public class CommonController
     }
 
     /**
-     * 校验当前登录用户是否允许下载存储文件
-     *
-     * @param storageFile 存储文件记录
-     * @param bizType 请求声明的业务类型
-     * @param bizId 请求声明的业务ID
-     */
-    private void checkStorageDownloadAllowed(SysStorageFile storageFile, String bizType, String bizId, String accessToken)
-    {
-        if (storageFile == null)
-        {
-            throw new ServiceException("文件记录不存在");
-        }
-        // 待删除和已删除文件不允许继续通过历史授权访问
-        if (StorageFileStatus.isInvalid(storageFile.getFileStatus()))
-        {
-            throw new ServiceException("文件已失效");
-        }
-        // 公开文件本身可以走静态资源访问，登录下载入口也允许读取
-        if (isPublicStorageFile(storageFile))
-        {
-            return;
-        }
-        // 私有文件只要携带了有效的短期访问 token，就说明业务接口已经完成业务权限校验
-        if (storageFileAccessTokenService.verifyToken(storageFile.getFileId(), accessToken))
-        {
-            return;
-        }
-        // 已绑定业务的普通私有文件不能继续按登录用户兜底，否则会绕开业务模块自己的菜单权限和数据权限
-        if (StringUtils.isNotBlank(storageFile.getBizType())
-                && !StorageFileConstants.BIZ_TYPE_AVATAR.equals(storageFile.getBizType()))
-        {
-            throw new ServiceException("业务私有文件缺少访问授权");
-        }
-        // 超级管理员和拥有统一下载权限的用户只兜底处理非业务绑定文件，业务私有文件请走业务接口签发 token
-        if (hasStorageDownloadPermission())
-        {
-            return;
-        }
-        String username = SecurityUtils.getUsername();
-        // 临时文件或未绑定业务文件只允许上传人自己下载，已绑定业务后要继续走业务身份校验
-        if (StringUtils.isBlank(storageFile.getBizType()) && StringUtils.isNotBlank(storageFile.getCreateBy())
-                && storageFile.getCreateBy().equals(username))
-        {
-            return;
-        }
-        // 头像属于用户自身资料，当前用户只能下载自己的头像文件
-        if (StorageFileConstants.BIZ_TYPE_AVATAR.equals(storageFile.getBizType())
-                && String.valueOf(SecurityUtils.getUserId()).equals(storageFile.getBizId()))
-        {
-            return;
-        }
-        // 走到这里说明既不是公开文件，也不是本人临时文件、本人头像或已绑定业务文件
-        throw new ServiceException("没有权限访问文件");
-    }
-
-    /**
-     * 判断文件是否是公开访问文件
-     *
-     * @param storageFile 存储文件记录
-     * @return true 表示公开文件
-     */
-    private boolean isPublicStorageFile(SysStorageFile storageFile)
-    {
-        // 访问级别以文件记录表 access 字段为准，不再在下载鉴权时解析存储路径
-        return StorageFileAccess.isPublic(storageFile.getAccess());
-    }
-
-    /**
-     * 判断文件是否是私有访问文件
-     *
-     * @param storageFile 存储文件记录
-     * @return true 表示私有文件
-     */
-    private boolean isPrivateStorageFile(SysStorageFile storageFile)
-    {
-        // 私有文件必须通过后端代理和短期 token 访问，不能把真实对象存储地址暴露给前端
-        return storageFile != null && StorageFileAccess.isPrivate(storageFile.getAccess());
-    }
-
-    /**
-     * 判断当前用户是否拥有存储文件管理下载权限
-     *
-     * @return true 表示拥有管理下载权限
-     */
-    private boolean hasStorageDownloadPermission()
-    {
-        try
-        {
-            // 文件预览下载入口允许匿名进入，未登录时 SecurityUtils 会抛出未授权异常，这里按无权限处理
-            return SecurityUtils.isAdmin() || SecurityUtils.hasPermi(StorageFileConstants.PERMISSION_STORAGE_DOWNLOAD);
-        }
-        catch (Exception e)
-        {
-            return false;
-        }
-    }
-
-    /**
      * 构造上传返回 DTO
      *
      * @param fileInfo X File Storage 文件信息
@@ -655,7 +564,7 @@ public class CommonController
             resp.setDownloadUrl(storageFileAccessUrlBuilder.buildDownloadUrl(storageFile));
             // thPreviewUrl 是缩略图展示地址，未生成缩略图时返回 null
             resp.setThPreviewUrl(storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile));
-            if (isPrivateStorageFile(storageFile))
+            if (storageFileAccessPolicyService.isPrivateStorageFile(storageFile))
             {
                 // 上传接口返回的是临时文件，私有临时文件也需要短期 token 才能在保存业务前预览
                 String accessToken = storageFileAccessTokenService.issueUserBoundToken(storageFile.getFileId());
@@ -700,7 +609,7 @@ public class CommonController
         SysStorageFile storageFile = storageFileService.selectStorageFileById(fileId);
         try
         {
-            checkStorageDownloadAllowed(storageFile, null, null, accessToken);
+            storageFileAccessPolicyService.checkAccessAllowed(storageFile, accessToken);
             FileInfo fileInfo = buildDownloadFileInfo(storageFile, thumbnail);
             if (fileInfo == null)
             {
