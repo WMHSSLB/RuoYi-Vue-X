@@ -4,7 +4,6 @@ import java.util.List;
 import org.apache.commons.io.FilenameUtils;
 import org.dromara.x.file.storage.core.FileInfo;
 import org.dromara.x.file.storage.core.FileStorageService;
-import org.dromara.x.file.storage.core.constant.Constant;
 import org.dromara.x.file.storage.core.upload.FilePartInfo;
 import org.dromara.x.file.storage.core.upload.FilePartInfoList;
 import org.dromara.x.file.storage.core.upload.InitiateMultipartUploadPretreatment;
@@ -13,15 +12,12 @@ import org.dromara.x.file.storage.core.upload.MultipartUploadSupportInfo;
 import org.dromara.x.file.storage.core.upload.UploadPretreatment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
-import com.ruoyi.common.config.StorageFileUploadProperties;
-import com.ruoyi.common.config.UploadSceneProperties;
-import com.ruoyi.common.config.UploadSceneProperties.Scene;
-import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.exception.file.FileNameLengthLimitExceededException;
 import com.ruoyi.common.exception.file.FileSizeLimitExceededException;
 import com.ruoyi.common.exception.file.InvalidExtensionException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.file.StorageUploadScenePolicyService.StorageUploadScenePolicy;
 import com.ruoyi.common.utils.uuid.IdUtils;
 
 /**
@@ -40,28 +36,21 @@ public class XFileStorageUtils
     private final FileStorageService fileStorageService;
 
     /**
-     * 上传场景配置
+     * 上传场景策略服务
      */
-    private final UploadSceneProperties uploadSceneProperties;
-
-    /**
-     * 存储文件上传控制配置
-     */
-    private final StorageFileUploadProperties storageFileUploadProperties;
+    private final StorageUploadScenePolicyService storageUploadScenePolicyService;
 
     /**
      * 构造上传适配工具
      *
      * @param fileStorageService X File Storage 统一存储服务
-     * @param uploadSceneProperties 上传场景配置
-     * @param storageFileUploadProperties 存储文件上传控制配置
+     * @param storageUploadScenePolicyService 上传场景策略服务
      */
-    public XFileStorageUtils(FileStorageService fileStorageService, UploadSceneProperties uploadSceneProperties,
-            StorageFileUploadProperties storageFileUploadProperties)
+    public XFileStorageUtils(FileStorageService fileStorageService,
+            StorageUploadScenePolicyService storageUploadScenePolicyService)
     {
         this.fileStorageService = fileStorageService;
-        this.uploadSceneProperties = uploadSceneProperties;
-        this.storageFileUploadProperties = storageFileUploadProperties;
+        this.storageUploadScenePolicyService = storageUploadScenePolicyService;
     }
 
     /**
@@ -155,44 +144,29 @@ public class XFileStorageUtils
     public FileInfo upload(MultipartFile file, String platform, String uploadScene, String[] allowedExtension,
             boolean thumbnail, Integer thumbnailWidth, Integer thumbnailHeight) throws Exception
     {
-        // 根据场景编码读取场景规则，未传场景时按配置决定是否允许回退默认规则
-        Scene scene = getScene(uploadScene);
-        // 场景配置了扩展名时优先使用场景白名单
-        String[] actualAllowedExtension = getAllowedExtension(scene, allowedExtension);
-        // 场景配置了最大大小时优先使用场景大小限制
-        long maxSize = getMaxSize(scene);
-        // 场景配置了缩略图开关时优先使用场景缩略图策略
-        boolean actualThumbnail = scene != null && scene.getThumbnail() != null ? scene.getThumbnail() : thumbnail;
-        // 场景配置了缩略图宽度时优先使用场景宽度
-        Integer actualThumbnailWidth = scene != null && scene.getThumbnailWidth() != null ? scene.getThumbnailWidth() : thumbnailWidth;
-        // 场景配置了缩略图高度时优先使用场景高度
-        Integer actualThumbnailHeight = scene != null && scene.getThumbnailHeight() != null ? scene.getThumbnailHeight() : thumbnailHeight;
-        // 场景配置了缩略图后缀时覆盖全局缩略图后缀
-        String actualThumbnailSuffix = getThumbnailSuffix(scene);
-        // 先执行若依原有文件安全校验
-        assertAllowed(file, actualAllowedExtension, maxSize);
         // 日期目录保持 yyyy/MM/dd，便于按天归档
         String datePath = DateUtils.datePath();
-        // 按上传场景生成 public/private 分层路径，便于 Spring Security 放行公开资源
-        String storagePath = buildStoragePath(scene, uploadScene, datePath);
+        // 上传场景策略服务统一解析大小、格式、路径、缩略图和访问级别
+        StorageUploadScenePolicy policy = storageUploadScenePolicyService.resolvePolicy(uploadScene, allowedExtension,
+                thumbnail, thumbnailWidth, thumbnailHeight, datePath);
+        // 先执行若依原有文件安全校验，校验规则来自最终场景策略
+        assertAllowed(file, policy.getAllowedExtension(), policy.getMaxSize());
         // 构造上传预处理对象，文件名继续使用若依 UUID 规则
         UploadPretreatment upload = fileStorageService.of(file)
-                .setPath(storagePath)
+                .setPath(policy.getStoragePath())
                 .setSaveFilename(FileUploadUtils.uuidFilename(file).substring(datePath.length() + 1));
         if (StringUtils.isNotBlank(platform))
         {
             // 指定平台时覆盖配置中的默认平台
             upload.setPlatform(platform);
         }
-        if (scene != null)
-        {
-            // 只有声明场景时才同步对象 ACL，未声明场景时保留平台默认权限
-            applyAcl(upload, scene);
-        }
-        if (actualThumbnail)
+        // ACL 是否设置由场景策略服务决定，未声明场景时保留平台默认权限
+        storageUploadScenePolicyService.applyAcl(upload, policy);
+        if (policy.isThumbnail())
         {
             // 明确要求缩略图时再开启，避免普通文件被误处理为图片
-            setThumbnail(upload, file, actualThumbnailWidth, actualThumbnailHeight, actualThumbnailSuffix);
+            setThumbnail(upload, file, policy.getThumbnailWidth(), policy.getThumbnailHeight(),
+                    policy.getThumbnailSuffix());
         }
         // platform 为空时 X File Storage 会使用 dromara.x-file-storage.default-platform
         return upload.upload();
@@ -229,9 +203,9 @@ public class XFileStorageUtils
             throw new IllegalArgumentException("请选择要上传的文件");
         }
         // 获取上传场景时会顺带执行 require-upload-scene 和场景存在性校验
-        Scene scene = getScene(uploadScene);
         // 数量优先级为代码指定值、场景配置值、全局配置值、系统兜底值
-        int maxBatchUploadCount = getMaxBatchUploadCount(scene, customMaxBatchUploadCount);
+        int maxBatchUploadCount = storageUploadScenePolicyService.resolveMaxBatchUploadCount(uploadScene,
+                customMaxBatchUploadCount);
         if (files.size() > maxBatchUploadCount)
         {
             throw new IllegalArgumentException("单次最多上传 " + maxBatchUploadCount + " 个文件");
@@ -356,22 +330,18 @@ public class XFileStorageUtils
             String uploadScene, String[] allowedExtension) throws FileNameLengthLimitExceededException,
             FileSizeLimitExceededException, InvalidExtensionException
     {
-        // 根据场景编码读取场景规则，初始化阶段同样执行场景必传判断
-        Scene scene = getScene(uploadScene);
-        // 初始化阶段按场景限制文件格式和声明大小
-        String[] actualAllowedExtension = getAllowedExtension(scene, allowedExtension);
-        long maxSize = getMaxSize(scene);
-        // 初始化阶段还没有完整文件内容，只能先校验文件名、扩展名和声明大小
-        assertInitiateAllowed(originalFilename, size, actualAllowedExtension, maxSize);
         // 日期目录保持 yyyy/MM/dd，和普通上传使用相同归档规则
         String datePath = DateUtils.datePath();
-        // 分片上传也使用 public/private 分层路径，保持访问策略一致
-        String storagePath = buildStoragePath(scene, uploadScene, datePath);
+        // 分片初始化复用上传场景策略，保证大小、格式、路径和 ACL 与普通上传一致
+        StorageUploadScenePolicy policy = storageUploadScenePolicyService.resolvePolicy(uploadScene, allowedExtension,
+                false, null, null, datePath);
+        // 初始化阶段还没有完整文件内容，只能先校验文件名、扩展名和声明大小
+        assertInitiateAllowed(originalFilename, size, policy.getAllowedExtension(), policy.getMaxSize());
         // 分片上传使用 UUID 文件名，避免暴露用户原始文件名并降低重名风险
         String saveFilename = IdUtils.fastSimpleUUID() + "." + FilenameUtils.getExtension(originalFilename);
         // 构造初始化请求，返回的 FileInfo 会携带 uploadId 供后续分片上传使用
         InitiateMultipartUploadPretreatment upload = fileStorageService.initiateMultipartUpload()
-                .setPath(storagePath)
+                .setPath(policy.getStoragePath())
                 .setSaveFilename(saveFilename)
                 .setOriginalFilename(originalFilename)
                 .setSize(size)
@@ -381,11 +351,8 @@ public class XFileStorageUtils
             // 指定平台时覆盖配置中的默认平台
             upload.setPlatform(platform);
         }
-        if (scene != null)
-        {
-            // 分片上传初始化也按场景访问级别设置对象 ACL
-            applyMultipartAcl(upload, scene);
-        }
+        // ACL 是否设置由场景策略服务决定，未声明场景时保留平台默认权限
+        storageUploadScenePolicyService.applyMultipartAcl(upload, policy);
         // 执行初始化，框架会通过 FileRecorder.save 保存分片上传会话
         return upload.init();
     }
@@ -586,233 +553,6 @@ public class XFileStorageUtils
         {
             throw new InvalidExtensionException(allowedExtension, extension, originalFilename);
         }
-    }
-
-    /**
-     * 根据上传场景编码获取场景配置
-     *
-     * @param uploadScene 上传场景编码
-     * @return 上传场景配置
-     */
-    private Scene getScene(String uploadScene)
-    {
-        // 生产环境可开启强制场景，避免新业务误走默认大小、格式和访问策略
-        if (storageFileUploadProperties.isRequireUploadScene() && StringUtils.isBlank(uploadScene))
-        {
-            throw new IllegalArgumentException("上传场景不能为空");
-        }
-        // 没有传场景时不启用场景规则，保持兼容旧上传入口
-        if (StringUtils.isBlank(uploadScene))
-        {
-            return null;
-        }
-        // 场景不存在时直接拒绝，避免前端传错后回退到更宽松的默认规则
-        Scene scene = uploadSceneProperties.getScene(uploadScene);
-        if (scene == null)
-        {
-            throw new IllegalArgumentException("上传场景不存在：" + uploadScene);
-        }
-        return scene;
-    }
-
-    /**
-     * 获取当前上传允许的扩展名
-     *
-     * @param scene 上传场景配置
-     * @param defaultAllowedExtension 默认扩展名白名单
-     * @return 实际扩展名白名单
-     */
-    private String[] getAllowedExtension(Scene scene, String[] defaultAllowedExtension)
-    {
-        // 场景没有配置扩展名时使用调用方默认白名单
-        if (scene == null || scene.getAllowedExtension() == null || scene.getAllowedExtension().isEmpty())
-        {
-            return defaultAllowedExtension;
-        }
-        // 将配置列表转换为若依校验工具使用的字符串数组
-        return scene.getAllowedExtension().toArray(new String[0]);
-    }
-
-    /**
-     * 获取当前上传最大大小
-     *
-     * @param scene 上传场景配置
-     * @return 最大上传大小，单位字节
-     */
-    private long getMaxSize(Scene scene)
-    {
-        // 场景没有配置大小时使用若依默认 50MB
-        if (scene == null || scene.getMaxSize() == null)
-        {
-            return FileUploadUtils.DEFAULT_MAX_SIZE;
-        }
-        // DataSize 会把 5MB、10MB 等配置换算成字节
-        return scene.getMaxSize().toBytes();
-    }
-
-    /**
-     * 获取单次批量上传最大文件数量
-     *
-     * @param scene 上传场景配置
-     * @param customMaxBatchUploadCount 代码指定的最大文件数量
-     * @return 单次批量上传最大文件数量
-     */
-    private int getMaxBatchUploadCount(Scene scene, Integer customMaxBatchUploadCount)
-    {
-        // 业务专用接口传入代码级限制时优先使用，适合后端根据业务状态动态限制
-        if (customMaxBatchUploadCount != null && customMaxBatchUploadCount > 0)
-        {
-            return customMaxBatchUploadCount;
-        }
-        // 上传场景配置了批量数量时优先使用场景值，便于 A 业务 5 个、B 业务 10 个
-        if (scene != null && scene.getMaxBatchUploadCount() != null && scene.getMaxBatchUploadCount() > 0)
-        {
-            return scene.getMaxBatchUploadCount();
-        }
-        // 场景未配置时回退到全局批量上传数量
-        return storageFileUploadProperties.getEffectiveMaxBatchUploadCount();
-    }
-
-    /**
-     * 构建场景化存储路径
-     *
-     * @param scene 上传场景配置
-     * @param uploadScene 上传场景编码
-     * @param datePath 日期路径
-     * @return X File Storage setPath 使用的相对路径
-     */
-    private String buildStoragePath(Scene scene, String uploadScene, String datePath)
-    {
-        // 访问级别作为路径第一层，便于 /file/upload/public/** 匿名放行
-        String access = getAccess(scene);
-        // 场景路径作为第二层，方便按业务分类管理文件
-        String pathPrefix = getPathPrefix(scene, uploadScene);
-        return access + "/" + pathPrefix + "/" + datePath + "/";
-    }
-
-    /**
-     * 按上传场景设置对象访问权限
-     *
-     * @param upload 当前上传预处理对象
-     * @param scene 上传场景配置
-     */
-    private void applyAcl(UploadPretreatment upload, Scene scene)
-    {
-        // 部分平台不支持对象 ACL，关闭抛错可以保持多平台上传入口通用
-        upload.setNotSupportAclThrowException(false);
-        // public 场景需要匿名可读，否则私有 Bucket 会返回 AccessDenied
-        if (StorageFileConstants.ACCESS_PUBLIC.equals(getAccess(scene)))
-        {
-            upload.setAcl(Constant.ACL.PUBLIC_READ);
-            return;
-        }
-        // 未配置或非 public 场景统一按私有处理，避免业务附件被误公开
-        upload.setAcl(Constant.ACL.PRIVATE);
-    }
-
-    /**
-     * 按上传场景设置分片上传对象访问权限
-     *
-     * @param upload 当前分片上传初始化预处理对象
-     * @param scene 上传场景配置
-     */
-    private void applyMultipartAcl(InitiateMultipartUploadPretreatment upload, Scene scene)
-    {
-        // 部分平台不支持对象 ACL，关闭抛错可以避免影响分片上传初始化
-        upload.setNotSupportAclThrowException(false);
-        // public 场景的分片文件合并后需要匿名可读
-        if (StorageFileConstants.ACCESS_PUBLIC.equals(getAccess(scene)))
-        {
-            upload.setFileAcl(Constant.ACL.PUBLIC_READ);
-            return;
-        }
-        // private 场景显式设置私有，避免平台默认公开导致业务附件泄露
-        upload.setFileAcl(Constant.ACL.PRIVATE);
-    }
-
-    /**
-     * 获取上传场景访问级别
-     *
-     * @param scene 上传场景配置
-     * @return public 或 private
-     */
-    private String getAccess(Scene scene)
-    {
-        // 未配置场景或未配置访问级别时默认私有，避免新业务文件误公开
-        if (scene == null || StringUtils.isBlank(scene.getAccess()))
-        {
-            return StorageFileConstants.ACCESS_PRIVATE;
-        }
-        // 只接受 public，其它值一律按 private 处理
-        return StorageFileConstants.ACCESS_PUBLIC.equalsIgnoreCase(scene.getAccess()) ? StorageFileConstants.ACCESS_PUBLIC
-                : StorageFileConstants.ACCESS_PRIVATE;
-    }
-
-    /**
-     * 获取上传场景路径前缀
-     *
-     * @param scene 上传场景配置
-     * @param uploadScene 上传场景编码
-     * @return 已清洗的相对路径前缀
-     */
-    private String getPathPrefix(Scene scene, String uploadScene)
-    {
-        // 场景 path-prefix 优先，未配置时使用 uploadScene，再没有时落到 common
-        String pathPrefix = scene != null && StringUtils.isNotBlank(scene.getPathPrefix()) ? scene.getPathPrefix() : uploadScene;
-        if (StringUtils.isBlank(pathPrefix))
-        {
-            pathPrefix = "common";
-        }
-        return normalizePathPrefix(pathPrefix);
-    }
-
-    /**
-     * 获取上传场景缩略图后缀
-     *
-     * @param scene 上传场景配置
-     * @return 缩略图后缀，未配置时返回 null 使用全局默认
-     */
-    private String getThumbnailSuffix(Scene scene)
-    {
-        // 场景未配置缩略图后缀时不覆盖 X File Storage 全局 thumbnail-suffix
-        if (scene == null || StringUtils.isBlank(scene.getThumbnailSuffix()))
-        {
-            return null;
-        }
-        // 后缀必须以点号开头，避免生成没有扩展名语义的缩略图文件名
-        String thumbnailSuffix = scene.getThumbnailSuffix().trim();
-        if (!thumbnailSuffix.startsWith("."))
-        {
-            throw new IllegalArgumentException("缩略图后缀必须以 . 开头");
-        }
-        return thumbnailSuffix;
-    }
-
-    /**
-     * 清洗场景路径前缀
-     *
-     * @param pathPrefix 配置中的路径前缀
-     * @return 安全的相对路径前缀
-     */
-    private String normalizePathPrefix(String pathPrefix)
-    {
-        // 统一路径分隔符并去掉首尾空白
-        String normalized = pathPrefix.trim().replace("\\", "/");
-        // 去掉开头结尾斜杠，避免拼接出绝对路径或重复斜杠
-        while (normalized.startsWith("/"))
-        {
-            normalized = normalized.substring(1);
-        }
-        while (normalized.endsWith("/"))
-        {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        // 禁止路径穿越，场景路径只允许作为存储相对目录
-        if (normalized.contains(".."))
-        {
-            throw new IllegalArgumentException("上传场景路径前缀不能包含 ..");
-        }
-        return StringUtils.isBlank(normalized) ? "common" : normalized;
     }
 
     /**
