@@ -26,12 +26,10 @@ import com.alibaba.fastjson2.TypeReference;
 import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
 import com.ruoyi.common.enums.StorageFileAccess;
-import com.ruoyi.common.enums.StorageFileStatus;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
-import com.ruoyi.system.config.StorageFileProperties;
 import com.ruoyi.system.domain.SysStorageFile;
 import com.ruoyi.system.domain.SysStorageFilePart;
 import com.ruoyi.system.mapper.SysStorageFileMapper;
@@ -39,6 +37,8 @@ import com.ruoyi.system.mapper.SysStorageFilePartMapper;
 import com.ruoyi.system.service.ISysStorageFileService;
 import com.ruoyi.system.service.StorageFileAccessTokenService;
 import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
+import com.ruoyi.system.service.StorageFileLifecyclePolicyService;
+import com.ruoyi.system.service.StorageFileLifecyclePolicyService.CleanableStorageFileTimeRange;
 
 /**
  * 存储文件记录 服务层实现
@@ -57,7 +57,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     private SysStorageFilePartMapper storageFilePartMapper;
 
     @Autowired
-    private StorageFileProperties storageFileProperties;
+    private StorageFileLifecyclePolicyService storageFileLifecyclePolicyService;
 
     @Autowired
     private ObjectProvider<FileStorageService> fileStorageServiceProvider;
@@ -152,7 +152,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         query.setBizType(bizType);
         query.setBizId(bizId);
         // 业务回显只返回已绑定文件，过滤临时文件、待删除文件和已删除文件
-        query.setFileStatus(StorageFileStatus.USED.getCode());
+        query.setFileStatus(storageFileLifecyclePolicyService.getUsedStatus());
         return storageFileMapper.selectStorageFileList(query);
     }
 
@@ -247,7 +247,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             return storageFileMapper.updateStorageFile(storageFile) > 0;
         }
         // 新上传文件先记录为临时状态，等业务保存成功后再绑定为已使用
-        storageFile.setFileStatus(StorageFileStatus.TEMP.getCode());
+        storageFile.setFileStatus(storageFileLifecyclePolicyService.getInitialStatus());
         // 记录上传人，私有临时文件下载时可判断是否属于当前登录用户
         storageFile.setCreateBy(getCurrentUsernameQuietly());
         storageFile.setCreateTime(fileInfo.getCreateTime() == null ? DateUtils.getNowDate() : fileInfo.getCreateTime());
@@ -350,7 +350,8 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         }
         // 只能绑定当前用户上传的临时文件，或当前业务已经绑定的文件，避免抢绑其它业务文件
         int rows = storageFileMapper.bindStorageFilesByIds(idList, bizType, bizId, updateBy, updateBy,
-                StorageFileStatus.TEMP.getCode(), StorageFileStatus.USED.getCode(), StorageFileStatus.DELETED.getCode());
+                storageFileLifecyclePolicyService.getInitialStatus(), storageFileLifecyclePolicyService.getUsedStatus(),
+                storageFileLifecyclePolicyService.getDeletedStatus());
         if (rows < idList.size())
         {
             // 绑定数量不足说明存在不存在、已删除、非本人临时文件或其它业务文件，直接回滚业务保存
@@ -458,7 +459,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             return 0;
         }
         // 延迟删除给浏览器缓存、CDN 缓存和短时间回滚留出缓冲
-        LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
+        LocalDateTime deleteTime = storageFileLifecyclePolicyService.resolveDeleteTime(delayHours);
         return storageFileMapper.markStorageFileWaitDelete(sha256Hex(url), url, deleteTime, updateBy);
     }
 
@@ -473,9 +474,14 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     @Override
     public int markStorageFileWaitDelete(String url, String bizType, String updateBy)
     {
+        // 历史本地 /profile 文件没有 X File Storage 记录，直接跳过状态标记
+        if (StringUtils.isBlank(url))
+        {
+            return 0;
+        }
         // 不同业务可以配置不同保留时间，例如头像短保留、合同附件长保留
-        int delayHours = storageFileProperties.getDeleteDelayHours(bizType);
-        return markStorageFileWaitDelete(url, delayHours, updateBy);
+        LocalDateTime deleteTime = storageFileLifecyclePolicyService.resolveDeleteTime(bizType);
+        return storageFileMapper.markStorageFileWaitDelete(sha256Hex(url), url, deleteTime, updateBy);
     }
 
     /**
@@ -494,11 +500,10 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             return 0;
         }
-        int delayHours = storageFileProperties.getDeleteDelayHours(bizType);
-        LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
+        LocalDateTime deleteTime = storageFileLifecyclePolicyService.resolveDeleteTime(bizType);
         // 按主键批量标记待删除时必须带业务归属，避免误删其它业务的同 ID 文件引用
         return storageFileMapper.markStorageFilesWaitDeleteByIds(idList, bizType, bizId, deleteTime, updateBy,
-                StorageFileStatus.DELETED.getCode());
+                storageFileLifecyclePolicyService.getDeletedStatus());
     }
 
     /**
@@ -536,8 +541,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             return 0;
         }
-        int delayHours = getMaxDeleteDelayHours(typeList);
-        LocalDateTime deleteTime = LocalDateTime.now().plusHours(delayHours);
+        LocalDateTime deleteTime = storageFileLifecyclePolicyService.resolveDeleteTime(typeList);
         // 删除整条业务数据时，按业务ID和多个文件场景一次标记该业务下的所有文件
         return storageFileMapper.markStorageFilesWaitDeleteByBiz(typeList, bizId, deleteTime, updateBy);
     }
@@ -622,10 +626,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
         {
             throw new ServiceException("文件记录不存在");
         }
-        if (!StorageFileStatus.WAIT_DELETE.getCode().equals(storageFile.getFileStatus()))
-        {
-            throw new ServiceException("只有待删除文件可以重试删除");
-        }
+        storageFileLifecyclePolicyService.assertRetryDeleteAllowed(storageFile.getFileStatus());
         return deleteStorageFileNow(fileId, updateBy);
     }
 
@@ -638,12 +639,11 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     @Override
     public List<SysStorageFile> selectCleanableStorageFiles(int tempExpireHours)
     {
-        // 定时任务未传参数或参数非法时使用配置文件中的临时文件过期时间
-        int expireHours = tempExpireHours <= 0 ? storageFileProperties.getEffectiveTempExpireHours() : tempExpireHours;
-        // 临时文件按创建时间过期，待删除文件按 delete_time 到期
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime tempBefore = now.minusHours(expireHours);
-        return storageFileMapper.selectCleanableStorageFiles(tempBefore, now);
+        // 生命周期策略服务统一计算临时文件过期时间和待删除文件到期时间
+        CleanableStorageFileTimeRange timeRange = storageFileLifecyclePolicyService
+                .resolveCleanableTimeRange(tempExpireHours);
+        return storageFileMapper.selectCleanableStorageFiles(timeRange.getTempBefore(),
+                timeRange.getWaitDeleteBefore());
     }
 
     /**
@@ -863,23 +863,6 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
             }
         }
         return result;
-    }
-
-    /**
-     * 获取多个业务类型中的最长待删除延迟
-     *
-     * @param bizTypes 业务类型集合
-     * @return 最长待删除延迟小时数
-     */
-    private int getMaxDeleteDelayHours(Collection<String> bizTypes)
-    {
-        int maxDelayHours = 0;
-        for (String bizType : bizTypes)
-        {
-            // 多个文件场景一起删除时取最长保留时间，避免短保留场景提前删除仍需保留的附件
-            maxDelayHours = Math.max(maxDelayHours, storageFileProperties.getDeleteDelayHours(bizType));
-        }
-        return maxDelayHours;
     }
 
     /**
