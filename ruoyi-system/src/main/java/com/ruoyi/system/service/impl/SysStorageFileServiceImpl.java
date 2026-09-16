@@ -25,7 +25,6 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.ruoyi.common.constant.StorageFileConstants;
 import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
-import com.ruoyi.common.enums.StorageFileAccess;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -35,10 +34,9 @@ import com.ruoyi.system.domain.SysStorageFilePart;
 import com.ruoyi.system.mapper.SysStorageFileMapper;
 import com.ruoyi.system.mapper.SysStorageFilePartMapper;
 import com.ruoyi.system.service.ISysStorageFileService;
-import com.ruoyi.system.service.StorageFileAccessTokenService;
-import com.ruoyi.system.service.StorageFileAccessUrlBuilder;
 import com.ruoyi.system.service.StorageFileLifecyclePolicyService;
 import com.ruoyi.system.service.StorageFileLifecyclePolicyService.CleanableStorageFileTimeRange;
+import com.ruoyi.system.service.StorageFileResponseAssembler;
 
 /**
  * 存储文件记录 服务层实现
@@ -63,10 +61,7 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
     private ObjectProvider<FileStorageService> fileStorageServiceProvider;
 
     @Autowired
-    private StorageFileAccessUrlBuilder storageFileAccessUrlBuilder;
-
-    @Autowired
-    private StorageFileAccessTokenService storageFileAccessTokenService;
+    private StorageFileResponseAssembler storageFileResponseAssembler;
 
     /**
      * 根据 URL 查询存储文件记录
@@ -700,42 +695,8 @@ public class SysStorageFileServiceImpl implements ISysStorageFileService
      */
     private StorageFileUploadRespDTO buildAuthorizedFileRespDTO(SysStorageFile storageFile, boolean bindCurrentUser)
     {
-        StorageFileUploadRespDTO resp = new StorageFileUploadRespDTO();
-        if (storageFile == null)
-        {
-            return resp;
-        }
-        resp.setFileId(storageFile.getFileId());
-        resp.setObjectKey(storageFile.getObjectKey());
-        resp.setNewFileName(storageFile.getFilename());
-        resp.setOriginalFilename(storageFile.getOriginalFilename());
-        resp.setPlatform(storageFile.getPlatform());
-        resp.setThObjectKey(storageFile.getThObjectKey());
-        resp.setThNewFileName(storageFile.getThFilename());
-        resp.setSize(storageFile.getSize());
-        resp.setThSize(storageFile.getThSize());
-        resp.setContentType(storageFile.getContentType());
-        resp.setAccess(storageFile.getAccess());
-        String previewUrl = storageFileAccessUrlBuilder.buildPreviewUrl(storageFile);
-        String downloadUrl = storageFileAccessUrlBuilder.buildDownloadUrl(storageFile);
-        String thPreviewUrl = storageFileAccessUrlBuilder.buildThumbnailPreviewUrl(storageFile);
-        if (StorageFileAccess.isPrivate(storageFile.getAccess()))
-        {
-            // 私有文件只在业务接口确认访问权后签发短期 token，前端不能直接拿真实存储地址
-            String token = bindCurrentUser ? storageFileAccessTokenService.issueUserBoundToken(storageFile.getFileId())
-                    : storageFileAccessTokenService.issueToken(storageFile.getFileId());
-            previewUrl = storageFileAccessTokenService.appendToken(previewUrl, token);
-            downloadUrl = storageFileAccessTokenService.appendToken(downloadUrl, token);
-            thPreviewUrl = storageFileAccessTokenService.appendToken(thPreviewUrl, token);
-        }
-        resp.setUrl(previewUrl);
-        resp.setPreviewUrl(previewUrl);
-        resp.setDownloadUrl(downloadUrl);
-        resp.setFileName(previewUrl);
-        resp.setThUrl(thPreviewUrl);
-        resp.setThPreviewUrl(thPreviewUrl);
-        resp.setThFileName(thPreviewUrl);
-        return resp;
+        // 业务回显 DTO 统一交给响应组装器处理，避免文件服务和控制器各自维护一套返回字段规则
+        return storageFileResponseAssembler.assemble(storageFile, bindCurrentUser);
     }
 
     /**
