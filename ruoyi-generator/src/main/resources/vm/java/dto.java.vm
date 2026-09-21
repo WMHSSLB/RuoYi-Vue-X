@@ -1,0 +1,51 @@
+package ${packageName}.dto;
+
+## DTO只导入接口入参需要的类型，不导入@TableName、@Version等实体持久化注解。
+#foreach ($import in $dtoImportList)
+import ${import};
+#end
+#if($table.sub)
+import java.util.List;
+import ${packageName}.domain.${subClassName};
+#end
+import com.ruoyi.common.core.domain.BaseEntity;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/**
+ * ${functionName}DTO
+ *
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Schema(description = "${functionName}DTO")
+@Data
+@EqualsAndHashCode(callSuper = false)
+public class ${ClassName}Dto extends BaseEntity
+{
+    private static final long serialVersionUID = 1L;
+
+#foreach ($column in $columns)
+#if(!$table.isSuperColumn($column.javaField))
+    /** $column.columnComment */
+## DateTimeFormat用于GET查询参数绑定，JsonFormat用于JSON正文和响应格式化。
+#if($column.javaType == 'LocalDate')
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#elseif($column.javaType == 'LocalDateTime')
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#elseif($column.javaType == 'Date')
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#end
+    private $column.javaType $column.javaField;
+
+#end
+#end
+#if($table.sub)
+    /** $table.subTable.functionName信息 */
+    private List<${subClassName}> ${subclassName}List;
+
+#end
+}

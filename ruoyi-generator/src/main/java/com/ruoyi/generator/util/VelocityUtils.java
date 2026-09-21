@@ -70,6 +70,8 @@ public class VelocityUtils
         velocityContext.put("datetime", DateUtils.getDate());
         velocityContext.put("pkColumn", genTable.getPkColumn());
         velocityContext.put("importList", getImportList(genTable));
+        velocityContext.put("dtoImportList", getDtoVoImportList(genTable));
+        velocityContext.put("voImportList", getDtoVoImportList(genTable));
         velocityContext.put("permissionPrefix", getPermissionPrefix(moduleName, businessName));
         velocityContext.put("columns", genTable.getColumns());
         velocityContext.put("table", genTable);
@@ -199,6 +201,8 @@ public class VelocityUtils
         }
         List<String> templates = new ArrayList<String>();
         templates.add("vm/java/domain.java.vm");
+        templates.add("vm/java/dto.java.vm");
+        templates.add("vm/java/vo.java.vm");
         templates.add("vm/java/mapper.java.vm");
         templates.add("vm/java/service.java.vm");
         templates.add("vm/java/serviceImpl.java.vm");
@@ -258,6 +262,14 @@ public class VelocityUtils
         else if (template.contains("sub-domain.java.vm") && StringUtils.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
         {
             fileName = StringUtils.format("{}/domain/{}.java", javaPath, genTable.getSubTable().getClassName());
+        }
+        else if (template.contains("dto.java.vm"))
+        {
+            fileName = StringUtils.format("{}/dto/{}Dto.java", javaPath, className);
+        }
+        else if (template.contains("vo.java.vm"))
+        {
+            fileName = StringUtils.format("{}/vo/{}Vo.java", javaPath, className);
         }
         else if (template.contains("mapper.java.vm"))
         {
@@ -381,6 +393,45 @@ public class VelocityUtils
     /**
      * 根据数据库字段名获取列信息。
      */
+    /**
+     * 获取DTO和VO需要导入的包列表，避免把实体专用的@TableName和@Version带入接口对象。
+     *
+     * @param genTable 业务表对象
+     * @return 返回DTO和VO需要导入的包列表
+     */
+    public static HashSet<String> getDtoVoImportList(GenTable genTable)
+    {
+        List<GenTableColumn> columns = genTable.getColumns();
+        HashSet<String> importList = new HashSet<String>();
+        for (GenTableColumn column : columns)
+        {
+            if (!column.isSuperColumn() && GenConstants.TYPE_DATE.equals(column.getJavaType()))
+            {
+                importList.add("java.util.Date");
+                importList.add("com.fasterxml.jackson.annotation.JsonFormat");
+            }
+            else if (!column.isSuperColumn() && GenConstants.TYPE_LOCAL_DATE.equals(column.getJavaType()))
+            {
+                // DTO/VO同样用于GET查询和JSON返回，LocalDate需要同时声明两类格式化注解。
+                importList.add("java.time.LocalDate");
+                importList.add("com.fasterxml.jackson.annotation.JsonFormat");
+                importList.add("org.springframework.format.annotation.DateTimeFormat");
+            }
+            else if (!column.isSuperColumn() && GenConstants.TYPE_LOCAL_DATE_TIME.equals(column.getJavaType()))
+            {
+                // DTO/VO同样用于GET查询和JSON返回，LocalDateTime需要同时声明两类格式化注解。
+                importList.add("java.time.LocalDateTime");
+                importList.add("com.fasterxml.jackson.annotation.JsonFormat");
+                importList.add("org.springframework.format.annotation.DateTimeFormat");
+            }
+            else if (!column.isSuperColumn() && GenConstants.TYPE_BIGDECIMAL.equals(column.getJavaType()))
+            {
+                importList.add("java.math.BigDecimal");
+            }
+        }
+        return importList;
+    }
+
     public static GenTableColumn getColumnByColumnName(GenTable genTable, String columnName)
     {
         if (StringUtils.isNull(genTable) || StringUtils.isEmpty(columnName))
