@@ -31,10 +31,8 @@ import lombok.NoArgsConstructor;
 @Builder
 ## 明确保持Lombok默认的不比较父类字段行为，避免继承BaseEntity时产生编译警告。
 @EqualsAndHashCode(callSuper = false)
-#if($subhasLogicDelete || $subhasVersion)
-## 子表含del_flag或version字段时生成TableName，兼容MP方式维护子表；del_flag逻辑删除规则由application.yml全局配置。
+## TableName使用数据库原始子表名，避免代码生成去前缀规则与MP运行时表名前缀配置互相影响。
 @TableName("${subTableName}")
-#end
 ## @NoArgsConstructor保留MyBatis JavaBean映射需要的无参构造；@Builder仅作为业务代码便捷构造方式。
 ## EasyExcel只导出带@ExcelProperty的字段，避免BaseEntity中的公共字段被默认导出。
 // EasyExcel仅处理显式标注@ExcelProperty的字段，避免继承字段被误导出。

@@ -9,6 +9,7 @@ import com.ruoyi.common.utils.DateUtils;
 #end
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 #if($table.sub)
 import java.util.ArrayList;
 import com.ruoyi.common.utils.StringUtils;
@@ -26,7 +27,8 @@ import ${packageName}.service.I${ClassName}Service;
  * @date ${datetime}
  */
 @Service
-public class ${ClassName}ServiceImpl implements I${ClassName}Service 
+// 继承MP的ServiceImpl，让生成Service实现类接入BaseMapper通用CRUD；若依XML方法继续按原业务入口调用。
+public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${ClassName}> implements I${ClassName}Service
 {
     @Autowired
     private ${ClassName}Mapper ${className}Mapper;

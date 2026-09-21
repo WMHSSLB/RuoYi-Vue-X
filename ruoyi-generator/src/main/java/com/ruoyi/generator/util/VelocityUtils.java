@@ -255,7 +255,7 @@ public class VelocityUtils
         {
             fileName = StringUtils.format("{}/domain/{}.java", javaPath, className);
         }
-        if (template.contains("sub-domain.java.vm") && StringUtils.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
+        else if (template.contains("sub-domain.java.vm") && StringUtils.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
         {
             fileName = StringUtils.format("{}/domain/{}.java", javaPath, genTable.getSubTable().getClassName());
         }
@@ -337,6 +337,8 @@ public class VelocityUtils
         List<GenTableColumn> columns = genTable.getColumns();
         GenTable subGenTable = genTable.getSubTable();
         HashSet<String> importList = new HashSet<String>();
+        // 生成Mapper继承BaseMapper后，实体统一生成@TableName并直接使用数据库原始表名。
+        importList.add("com.baomidou.mybatisplus.annotation.TableName");
         if (StringUtils.isNotNull(subGenTable))
         {
             importList.add("java.util.List");
@@ -367,18 +369,11 @@ public class VelocityUtils
                 importList.add("java.math.BigDecimal");
             }
         }
-        GenTableColumn logicDeleteColumn = getColumnByColumnName(genTable, LOGIC_DELETE_COLUMN_NAME);
         GenTableColumn versionColumn = getColumnByColumnName(genTable, VERSION_COLUMN_NAME);
-        if (StringUtils.isNotNull(logicDeleteColumn))
-        {
-            // 存在del_flag时只生成TableName，逻辑删除字段和值交给mybatis-plus全局配置。
-            importList.add("com.baomidou.mybatisplus.annotation.TableName");
-        }
         if (StringUtils.isNotNull(versionColumn) && isNumberVersionColumn(versionColumn))
         {
             // 只有数值型version才生成MP乐观锁注解，避免timestamp等同名字段被当作版本号。
             importList.add("com.baomidou.mybatisplus.annotation.Version");
-            importList.add("com.baomidou.mybatisplus.annotation.TableName");
         }
         return importList;
     }

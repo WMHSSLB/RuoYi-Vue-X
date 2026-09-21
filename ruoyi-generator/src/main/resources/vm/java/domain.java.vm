@@ -48,10 +48,8 @@ import lombok.NoArgsConstructor;
 ## EasyExcel只导出带@ExcelProperty的字段，避免BaseEntity中的公共字段被默认导出。
 // EasyExcel仅处理显式标注@ExcelProperty的字段，避免继承字段被误导出。
 @ExcelIgnoreUnannotated
-#if($hasLogicDelete || $hasVersion)
-## 表含del_flag或version字段时生成TableName，保证MP方法能准确定位真实表名；del_flag逻辑删除规则由application.yml全局配置。
+## TableName使用数据库原始表名，避免代码生成去前缀规则与MP运行时表名前缀配置互相影响。
 @TableName("${tableName}")
-#end
 public class ${ClassName} extends ${Entity} {
 
 ## 定义类的序列化版本ID
