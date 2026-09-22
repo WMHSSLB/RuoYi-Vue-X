@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.Response;
 import com.ruoyi.common.enums.BusinessType;
 import ${packageName}.domain.${ClassName};
 import ${packageName}.service.I${ClassName}Service;
@@ -55,10 +55,10 @@ public class ${ClassName}Controller extends BaseController
         return getDataTable(list);
     }
 #elseif($table.tree)
-    public AjaxResult list(${ClassName} ${className})
+    public Response<List<${ClassName}>> list(${ClassName} ${className})
     {
         List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
-        return success(list);
+        return Response.success(list);
     }
 #end
 
@@ -84,9 +84,9 @@ public class ${ClassName}Controller extends BaseController
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:query')")
     @Operation(summary = "获取${functionName}详细信息")
     @GetMapping(value = "/{${pkColumn.javaField}}")
-    public AjaxResult getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
+    public Response<${ClassName}> getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
     {
-        return success(${className}Service.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
+        return Response.success(${className}Service.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
     }
 
     /**
@@ -96,9 +96,9 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.INSERT)
     @Operation(summary = "新增${functionName}")
     @PostMapping
-    public AjaxResult add(@RequestBody ${ClassName} ${className})
+    public Response<Void> add(@RequestBody ${ClassName} ${className})
     {
-        return toAjax(${className}Service.insert${ClassName}(${className}));
+        return Response.toResponse(${className}Service.insert${ClassName}(${className}));
     }
 
     /**
@@ -108,9 +108,9 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
     @Operation(summary = "修改${functionName}")
     @PutMapping
-    public AjaxResult edit(@RequestBody ${ClassName} ${className})
+    public Response<Void> edit(@RequestBody ${ClassName} ${className})
     {
-        return toAjax(${className}Service.update${ClassName}(${className}));
+        return Response.toResponse(${className}Service.update${ClassName}(${className}));
     }
 
     /**
@@ -120,8 +120,8 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.DELETE)
     @Operation(summary = "删除${functionName}")
 	@DeleteMapping("/{${pkColumn.javaField}s}")
-    public AjaxResult remove(@PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s)
+    public Response<Void> remove(@PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s)
     {
-        return toAjax(${className}Service.delete${ClassName}By${pkColumn.capJavaField}s(${pkColumn.javaField}s));
+        return Response.toResponse(${className}Service.delete${ClassName}By${pkColumn.capJavaField}s(${pkColumn.javaField}s));
     }
 }

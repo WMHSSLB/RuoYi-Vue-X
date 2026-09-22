@@ -1,11 +1,12 @@
 import request from '@/utils/request'
-import type { AjaxResult, TableDataInfo, ${BusinessName}QueryParams, ${ClassName} } from '@/types'
+import type { Response, TableDataInfo } from '@/types/api/common'
+import type { ${BusinessName}QueryParams, ${ClassName} } from '@/types/api/${moduleName}/${businessName}'
 
 // 查询${functionName}列表
 #if($table.tree)
-export function list${BusinessName}(query?: ${BusinessName}QueryParams): Promise<AjaxResult<${ClassName}[]>> {
+export function list${BusinessName}(query?: ${BusinessName}QueryParams): Promise<Response<${ClassName}[]>> {
 #else
-export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<TableDataInfo<${ClassName}[]>> {
+export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<TableDataInfo<${ClassName}>> {
 #end
   return request({
     url: '/${moduleName}/${businessName}/list',
@@ -15,7 +16,7 @@ export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<
 }
 
 // 查询${functionName}详细
-export function get${BusinessName}(${pkColumn.javaField}: number): Promise<AjaxResult<${ClassName}>> {
+export function get${BusinessName}(${pkColumn.javaField}: number): Promise<Response<${ClassName}>> {
   return request({
     url: '/${moduleName}/${businessName}/' + ${pkColumn.javaField},
     method: 'get'
@@ -23,7 +24,7 @@ export function get${BusinessName}(${pkColumn.javaField}: number): Promise<AjaxR
 }
 
 // 新增${functionName}
-export function add${BusinessName}(data: ${ClassName}): Promise<AjaxResult> {
+export function add${BusinessName}(data: ${ClassName}): Promise<Response<void>> {
   return request({
     url: '/${moduleName}/${businessName}',
     method: 'post',
@@ -32,7 +33,7 @@ export function add${BusinessName}(data: ${ClassName}): Promise<AjaxResult> {
 }
 
 // 修改${functionName}
-export function update${BusinessName}(data: ${ClassName}): Promise<AjaxResult> {
+export function update${BusinessName}(data: ${ClassName}): Promise<Response<void>> {
   return request({
     url: '/${moduleName}/${businessName}',
     method: 'put',
@@ -41,7 +42,7 @@ export function update${BusinessName}(data: ${ClassName}): Promise<AjaxResult> {
 }
 
 // 删除${functionName}
-export function del${BusinessName}(${pkColumn.javaField}: number | number[]): Promise<AjaxResult> {
+export function del${BusinessName}(${pkColumn.javaField}: number | number[]): Promise<Response<void>> {
   return request({
     url: '/${moduleName}/${businessName}/' + ${pkColumn.javaField},
     method: 'delete'

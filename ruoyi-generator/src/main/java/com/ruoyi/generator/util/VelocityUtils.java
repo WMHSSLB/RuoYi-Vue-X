@@ -212,6 +212,7 @@ public class VelocityUtils
         templates.add(apiTemplate);
         if (StringUtils.equals(ELEMENT_PLUS_TYPESSRIPT, tplWebType))
         {
+            templates.add("vm/ts/common.ts.vm");
             templates.add("vm/ts/type.ts.vm");
             templates.add("vm/ts/index.ts.vm");
         }
@@ -302,6 +303,10 @@ public class VelocityUtils
         else if (template.contains("api.ts.vm"))
         {
             fileName = StringUtils.format("{}/api/{}/{}.ts", vuePath, moduleName, businessName);
+        }
+        else if (template.contains("common.ts.vm"))
+        {
+            fileName = StringUtils.format("{}/types/api/common.ts", vuePath);
         }
         else if (template.contains("type.ts.vm"))
         {
