@@ -1,0 +1,52 @@
+package ${packageName}.dto;
+
+#foreach ($import in $dtoImportList)
+import ${import};
+#end
+#if($table.sub)
+import java.util.List;
+import ${packageName}.domain.${subClassName};
+#end
+import com.ruoyi.common.core.domain.BaseEntity;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/**
+ * ${functionName}编辑DTO
+ *
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Schema(description = "${functionName}编辑DTO")
+@Data
+@EqualsAndHashCode(callSuper = false)
+public class ${ClassName}EditDto extends BaseEntity
+{
+    private static final long serialVersionUID = 1L;
+
+    /** $pkColumn.columnComment */
+    private $pkColumn.javaType $pkColumn.javaField;
+
+#foreach ($column in $columns)
+#if($column.edit && !$table.isSuperColumn($column.javaField) && !$column.pk)
+    /** $column.columnComment */
+#if($column.javaType == 'LocalDate')
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#elseif($column.javaType == 'LocalDateTime')
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#elseif($column.javaType == 'Date')
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#end
+    private $column.javaType $column.javaField;
+
+#end
+#end
+#if($table.sub)
+    /** $table.subTable.functionName信息 */
+    private List<${subClassName}> ${subclassName}List;
+
+#end
+}

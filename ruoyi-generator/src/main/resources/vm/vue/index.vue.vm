@@ -410,7 +410,7 @@
 #elseif($column.list && ($column.javaType == "LocalDateTime" || ($column.htmlType == "datetime" && $column.javaType != "LocalDate")))
           <el-table-column label="$comment" prop="${javaField}" width="240">
             <template slot-scope="scope">
-              <el-date-picker clearable v-model="scope.row.$javaField" type="datetime" value-format="yyyy-MM-dd HH:mm:ss" placeholder="璇烽€夋嫨$comment" />
+              <el-date-picker clearable v-model="scope.row.$javaField" type="datetime" value-format="yyyy-MM-dd HH:mm:ss" placeholder="请选择$comment" />
             </template>
           </el-table-column>
 #elseif($column.list && ($column.htmlType == "select" || $column.htmlType == "radio") && "" != $column.dictType)

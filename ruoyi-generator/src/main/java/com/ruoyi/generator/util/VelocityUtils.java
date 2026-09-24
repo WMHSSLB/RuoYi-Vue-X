@@ -72,6 +72,10 @@ public class VelocityUtils
         velocityContext.put("importList", getImportList(genTable));
         velocityContext.put("dtoImportList", getDtoVoImportList(genTable));
         velocityContext.put("voImportList", getDtoVoImportList(genTable));
+        velocityContext.put("storageFileColumns", getStorageFileColumns(genTable));
+        velocityContext.put("voStorageFileColumns", getVoStorageFileColumns(genTable));
+        velocityContext.put("hasStorageFile", !getStorageFileColumns(genTable).isEmpty());
+        velocityContext.put("hasVoStorageFile", !getVoStorageFileColumns(genTable).isEmpty());
         velocityContext.put("permissionPrefix", getPermissionPrefix(moduleName, businessName));
         velocityContext.put("columns", genTable.getColumns());
         velocityContext.put("table", genTable);
@@ -201,7 +205,9 @@ public class VelocityUtils
         }
         List<String> templates = new ArrayList<String>();
         templates.add("vm/java/domain.java.vm");
-        templates.add("vm/java/dto.java.vm");
+        templates.add("vm/java/saveDto.java.vm");
+        templates.add("vm/java/editDto.java.vm");
+        templates.add("vm/java/queryDto.java.vm");
         templates.add("vm/java/vo.java.vm");
         templates.add("vm/java/mapper.java.vm");
         templates.add("vm/java/service.java.vm");
@@ -256,19 +262,27 @@ public class VelocityUtils
         String mybatisPath = MYBATIS_PATH + "/" + moduleName;
         String vuePath = "vue";
 
-        if (template.contains("domain.java.vm"))
+        if (template.endsWith("vm/java/domain.java.vm"))
         {
             fileName = StringUtils.format("{}/domain/{}.java", javaPath, className);
         }
-        else if (template.contains("sub-domain.java.vm") && StringUtils.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
+        else if (template.endsWith("vm/java/sub-domain.java.vm") && StringUtils.equals(GenConstants.TPL_SUB, genTable.getTplCategory()))
         {
             fileName = StringUtils.format("{}/domain/{}.java", javaPath, genTable.getSubTable().getClassName());
         }
-        else if (template.contains("dto.java.vm"))
+        else if (template.endsWith("vm/java/saveDto.java.vm"))
         {
-            fileName = StringUtils.format("{}/dto/{}Dto.java", javaPath, className);
+            fileName = StringUtils.format("{}/dto/{}SaveDto.java", javaPath, className);
         }
-        else if (template.contains("vo.java.vm"))
+        else if (template.endsWith("vm/java/editDto.java.vm"))
+        {
+            fileName = StringUtils.format("{}/dto/{}EditDto.java", javaPath, className);
+        }
+        else if (template.endsWith("vm/java/queryDto.java.vm"))
+        {
+            fileName = StringUtils.format("{}/dto/{}QueryDto.java", javaPath, className);
+        }
+        else if (template.endsWith("vm/java/vo.java.vm"))
         {
             fileName = StringUtils.format("{}/vo/{}Vo.java", javaPath, className);
         }
@@ -435,6 +449,59 @@ public class VelocityUtils
             }
         }
         return importList;
+    }
+
+    /**
+     * 获取需要纳入文件生命周期管理的字段。
+     * <p>
+     * 代码生成页面中选择图片上传或文件上传的字段，默认认为业务表保存 fileId/fileIds。
+     */
+    public static List<GenTableColumn> getStorageFileColumns(GenTable genTable)
+    {
+        List<GenTableColumn> result = new ArrayList<GenTableColumn>();
+        if (StringUtils.isNull(genTable) || StringUtils.isEmpty(genTable.getColumns()))
+        {
+            return result;
+        }
+        for (GenTableColumn column : genTable.getColumns())
+        {
+            if (isStorageFileColumn(column))
+            {
+                result.add(column);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 获取 VO 中需要额外生成 xxxList 回显字段的文件字段。
+     * <p>
+     * 只有列表显示=true 且选择上传组件的字段才生成 xxxList，避免接口返回无用文件授权信息。
+     */
+    public static List<GenTableColumn> getVoStorageFileColumns(GenTable genTable)
+    {
+        List<GenTableColumn> result = new ArrayList<GenTableColumn>();
+        if (StringUtils.isNull(genTable) || StringUtils.isEmpty(genTable.getColumns()))
+        {
+            return result;
+        }
+        for (GenTableColumn column : genTable.getColumns())
+        {
+            if (column.isList() && isStorageFileColumn(column))
+            {
+                result.add(column);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 判断字段是否使用文件资产上传组件。
+     */
+    private static boolean isStorageFileColumn(GenTableColumn column)
+    {
+        return StringUtils.isNotNull(column) && StringUtils.equalsAny(column.getHtmlType(),
+                GenConstants.HTML_IMAGE_UPLOAD, GenConstants.HTML_FILE_UPLOAD);
     }
 
     public static GenTableColumn getColumnByColumnName(GenTable genTable, String columnName)

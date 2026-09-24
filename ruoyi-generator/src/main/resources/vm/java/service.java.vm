@@ -3,6 +3,10 @@ package ${packageName}.service;
 import java.util.List;
 import com.baomidou.mybatisplus.extension.service.IService;
 import ${packageName}.domain.${ClassName};
+import ${packageName}.dto.${ClassName}EditDto;
+import ${packageName}.dto.${ClassName}QueryDto;
+import ${packageName}.dto.${ClassName}SaveDto;
+import ${packageName}.vo.${ClassName}Vo;
 
 /**
  * ${functionName}Service接口
@@ -19,31 +23,39 @@ public interface I${ClassName}Service extends IService<${ClassName}>
      * @param ${pkColumn.javaField} ${functionName}主键
      * @return ${functionName}
      */
-    public ${ClassName} select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField});
+    public ${ClassName}Vo select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField});
 
     /**
      * 查询${functionName}列表
      * 
-     * @param ${className} ${functionName}
+     * @param ${className} ${functionName}查询条件
      * @return ${functionName}集合
      */
-    public List<${ClassName}> select${ClassName}List(${ClassName} ${className});
+    public List<${ClassName}Vo> select${ClassName}List(${ClassName}QueryDto ${className});
+
+    /**
+     * 查询${functionName}导出列表
+     *
+     * @param ${className} ${functionName}查询条件
+     * @return ${functionName}集合
+     */
+    public List<${ClassName}> select${ClassName}ExportList(${ClassName}QueryDto ${className});
 
     /**
      * 新增${functionName}
      * 
-     * @param ${className} ${functionName}
+     * @param ${className} ${functionName}新增参数
      * @return 结果
      */
-    public int insert${ClassName}(${ClassName} ${className});
+    public int insert${ClassName}(${ClassName}SaveDto ${className});
 
     /**
      * 修改${functionName}
      * 
-     * @param ${className} ${functionName}
+     * @param ${className} ${functionName}编辑参数
      * @return 结果
      */
-    public int update${ClassName}(${ClassName} ${className});
+    public int update${ClassName}(${ClassName}EditDto ${className});
 
     /**
      * 批量删除${functionName}

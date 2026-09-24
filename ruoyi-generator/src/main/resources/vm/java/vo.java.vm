@@ -4,9 +4,14 @@ package ${packageName}.vo;
 #foreach ($import in $voImportList)
 import ${import};
 #end
-#if($table.sub)
+#if($table.sub || $hasVoStorageFile)
 import java.util.List;
+#end
+#if($table.sub)
 import ${packageName}.domain.${subClassName};
+#end
+#if($hasVoStorageFile)
+import com.ruoyi.common.core.domain.model.StorageFileUploadRespDTO;
 #end
 import com.ruoyi.common.core.domain.BaseEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,7 +32,7 @@ public class ${ClassName}Vo extends BaseEntity
     private static final long serialVersionUID = 1L;
 
 #foreach ($column in $columns)
-#if(!$table.isSuperColumn($column.javaField))
+#if(($column.list || $column.pk) && !$table.isSuperColumn($column.javaField))
     /** $column.columnComment */
 ## DateTimeFormat保留给VO复用为查询对象时的GET绑定，JsonFormat控制JSON响应格式。
 #if($column.javaType == 'LocalDate')
@@ -42,6 +47,11 @@ public class ${ClassName}Vo extends BaseEntity
     private $column.javaType $column.javaField;
 
 #end
+#end
+#foreach ($column in $voStorageFileColumns)
+    /** $column.columnComment文件回显列表 */
+    private List<StorageFileUploadRespDTO> ${column.javaField}List;
+
 #end
 #if($table.sub)
     /** $table.subTable.functionName信息 */

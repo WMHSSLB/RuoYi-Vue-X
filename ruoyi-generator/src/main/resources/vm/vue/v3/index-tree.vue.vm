@@ -142,7 +142,13 @@
 #elseif($column.list && $column.htmlType == "imageUpload")
       <el-table-column label="${comment}" align="center" prop="${javaField}" width="100">
         <template #default="scope">
-          <image-preview :src="scope.row.${javaField}" :width="50" :height="50"/>
+          <storage-image-preview :value="scope.row.${javaField}" :file-list="scope.row.${javaField}List" :width="50" :height="50"/>
+        </template>
+      </el-table-column>
+#elseif($column.list && $column.htmlType == "fileUpload")
+      <el-table-column label="${comment}" align="center" prop="${javaField}">
+        <template #default="scope">
+          <storage-file-names :value="scope.row.${javaField}" :file-list="scope.row.${javaField}List"/>
         </template>
       </el-table-column>
 #elseif($column.list && "" != $column.dictType)
@@ -223,13 +229,15 @@
 #elseif($column.htmlType == "imageUpload")
           <el-col :span="${colSpan}">
             <el-form-item label="${comment}" prop="${field}">
-              <image-upload v-model="form.${field}"/>
+              <!-- value-type="fileId" 表示表单字段保存文件资产ID，${field}List 用于回显私有文件。 -->
+              <image-upload v-model="form.${field}" value-type="fileId" :storage-file-list="form.${field}List"/>
             </el-form-item>
           </el-col>
 #elseif($column.htmlType == "fileUpload")
           <el-col :span="${colSpan}">
             <el-form-item label="${comment}" prop="${field}">
-              <file-upload v-model="form.${field}"/>
+              <!-- value-type="fileId" 表示表单字段保存文件资产ID，${field}List 用于回显私有文件。 -->
+              <file-upload v-model="form.${field}" value-type="fileId" :storage-file-list="form.${field}List"/>
             </el-form-item>
           </el-col>
 #elseif($column.htmlType == "editor")
@@ -355,6 +363,10 @@
 
 <script setup name="${BusinessName}">
 import { list${BusinessName}, get${BusinessName}, del${BusinessName}, add${BusinessName}, update${BusinessName} } from "@/api/${moduleName}/${businessName}"
+#if($hasVoStorageFile)
+import StorageImagePreview from "@/components/StorageImagePreview"
+import StorageFileNames from "@/components/StorageFileNames"
+#end
 #if($genView)
 import ${BusinessName}ViewDrawer from "./view"
 #end

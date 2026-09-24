@@ -1,0 +1,40 @@
+package ${packageName}.dto;
+
+#foreach ($import in $dtoImportList)
+import ${import};
+#end
+import com.ruoyi.common.core.domain.BaseEntity;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/**
+ * ${functionName}查询DTO
+ *
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Schema(description = "${functionName}查询DTO")
+@Data
+@EqualsAndHashCode(callSuper = false)
+public class ${ClassName}QueryDto extends BaseEntity
+{
+    private static final long serialVersionUID = 1L;
+
+#foreach ($column in $columns)
+#if($column.query && !$table.isSuperColumn($column.javaField))
+    /** $column.columnComment */
+#if($column.javaType == 'LocalDate')
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#elseif($column.javaType == 'LocalDateTime')
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+#elseif($column.javaType == 'Date')
+    @JsonFormat(pattern = "yyyy-MM-dd")
+#end
+    private $column.javaType $column.javaField;
+
+#end
+#end
+}

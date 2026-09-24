@@ -17,7 +17,11 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.Response;
 import com.ruoyi.common.enums.BusinessType;
 import ${packageName}.domain.${ClassName};
+import ${packageName}.dto.${ClassName}EditDto;
+import ${packageName}.dto.${ClassName}QueryDto;
+import ${packageName}.dto.${ClassName}SaveDto;
 import ${packageName}.service.I${ClassName}Service;
+import ${packageName}.vo.${ClassName}Vo;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -48,16 +52,16 @@ public class ${ClassName}Controller extends BaseController
     @Operation(summary = "查询${functionName}列表")
     @GetMapping("/list")
 #if($table.crud || $table.sub)
-    public TableDataInfo list(${ClassName} ${className})
+    public TableDataInfo list(${ClassName}QueryDto ${className})
     {
         startPage();
-        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        List<${ClassName}Vo> list = ${className}Service.select${ClassName}List(${className});
         return getDataTable(list);
     }
 #elseif($table.tree)
-    public Response<List<${ClassName}>> list(${ClassName} ${className})
+    public Response<List<${ClassName}Vo>> list(${ClassName}QueryDto ${className})
     {
-        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        List<${ClassName}Vo> list = ${className}Service.select${ClassName}List(${className});
         return Response.success(list);
     }
 #end
@@ -69,9 +73,9 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
     @Operation(summary = "导出${functionName}列表")
     @PostMapping("/export")
-    public void export(HttpServletResponse response, ${ClassName} ${className})
+    public void export(HttpServletResponse response, ${ClassName}QueryDto ${className})
     {
-        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        List<${ClassName}> list = ${className}Service.select${ClassName}ExportList(${className});
         ExcelUtil<${ClassName}> util = new ExcelUtil<${ClassName}>(${ClassName}.class);
         // 代码生成默认使用EasyExcel导出，实体上的@ExcelProperty负责声明表头和转换器。
         // 若需要使用若依原POI导出能力，可切换为util.exportExcel(response, list, "${functionName}数据")。
@@ -84,7 +88,7 @@ public class ${ClassName}Controller extends BaseController
     @PreAuthorize("@ss.hasPermi('${permissionPrefix}:query')")
     @Operation(summary = "获取${functionName}详细信息")
     @GetMapping(value = "/{${pkColumn.javaField}}")
-    public Response<${ClassName}> getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
+    public Response<${ClassName}Vo> getInfo(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
     {
         return Response.success(${className}Service.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
     }
@@ -96,7 +100,7 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.INSERT)
     @Operation(summary = "新增${functionName}")
     @PostMapping
-    public Response<Void> add(@RequestBody ${ClassName} ${className})
+    public Response<Void> add(@RequestBody ${ClassName}SaveDto ${className})
     {
         return Response.toResponse(${className}Service.insert${ClassName}(${className}));
     }
@@ -108,7 +112,7 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
     @Operation(summary = "修改${functionName}")
     @PutMapping
-    public Response<Void> edit(@RequestBody ${ClassName} ${className})
+    public Response<Void> edit(@RequestBody ${ClassName}EditDto ${className})
     {
         return Response.toResponse(${className}Service.update${ClassName}(${className}));
     }

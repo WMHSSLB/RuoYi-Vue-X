@@ -1,0 +1,43 @@
+export interface Response<T = unknown> {
+  success: boolean
+  message?: string | null
+  errorCode?: string | null
+  data?: T
+}
+
+export interface TableDataInfo<T = unknown> {
+  code: number
+  msg: string
+  rows: T[]
+  total: number
+}
+
+export interface PageDomain {
+  pageNum?: number
+  pageSize?: number
+  orderByColumn?: string
+  isAsc?: string
+  reasonable?: boolean
+}
+
+export interface BaseEntity {
+  createBy?: string
+  createTime?: string
+  updateBy?: string
+  updateTime?: string
+  remark?: string
+  params?: Record<string, unknown>
+}
+
+export interface StorageFileUploadRespDTO {
+  fileId?: number
+  url?: string
+  previewUrl?: string
+  downloadUrl?: string
+  thPreviewUrl?: string
+  originalFilename?: string
+  newFileName?: string
+  platform?: string
+  uploadScene?: string
+  access?: string
+}

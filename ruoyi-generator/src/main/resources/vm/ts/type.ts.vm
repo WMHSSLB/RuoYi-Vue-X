@@ -1,6 +1,6 @@
-import type { PageDomain, BaseEntity } from "../common";
+import type { PageDomain, BaseEntity, StorageFileUploadRespDTO } from "../common";
 
-/** ${functionName}配置分页查询参数 */
+/** ${functionName}分页查询参数 */
 export interface ${BusinessName}QueryParams extends PageDomain {
 #foreach($column in $columns)
 #if($column.query)
@@ -19,9 +19,10 @@ export interface ${BusinessName}QueryParams extends PageDomain {
 #end
 }
 
-/** ${functionName}配置信息 */
-export interface ${ClassName} extends BaseEntity {
+/** ${functionName}新增参数 */
+export interface ${ClassName}SaveDto extends BaseEntity {
 #foreach($column in $columns)
+#if($column.insert && (!$column.pk || !$pkColumn.increment))
 #set($type = "string")
 #if($column.javaType == "Long" || $column.javaType == "Integer")
   #set($type = "number")
@@ -34,11 +35,65 @@ export interface ${ClassName} extends BaseEntity {
   /** ${column.columnComment} */
   ${column.javaField}?: ${type};
 #end
+#end
 #if($table.sub)
   /** $table.subTable.functionName信息 */
   ${subclassName}List?: ${subClassName}[];
 #end
 }
+
+/** ${functionName}编辑参数 */
+export interface ${ClassName}EditDto extends BaseEntity {
+  /** ${pkColumn.columnComment} */
+  ${pkColumn.javaField}?: #if($pkColumn.javaType == "Long" || $pkColumn.javaType == "Integer")number#else string#end;
+#foreach($column in $columns)
+#if($column.edit && !$column.pk)
+#set($type = "string")
+#if($column.javaType == "Long" || $column.javaType == "Integer")
+  #set($type = "number")
+#elseif($column.javaType == "Boolean")
+  #set($type = "boolean")
+#elseif($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime")
+  #set($type = "string")
+#end
+  /** ${column.columnComment} */
+  ${column.javaField}?: ${type};
+#end
+#end
+#if($table.sub)
+  /** $table.subTable.functionName信息 */
+  ${subclassName}List?: ${subClassName}[];
+#end
+}
+
+/** ${functionName}返回信息 */
+export interface ${ClassName}Vo extends BaseEntity {
+#foreach($column in $columns)
+#if($column.list || $column.pk)
+#set($type = "string")
+#if($column.javaType == "Long" || $column.javaType == "Integer")
+  #set($type = "number")
+#elseif($column.javaType == "Boolean")
+  #set($type = "boolean")
+#elseif($column.javaType == "LocalDate" || $column.javaType == "LocalDateTime")
+  #set($type = "string")
+#end
+  /** ${column.columnComment} */
+  ${column.javaField}?: ${type};
+#end
+#end
+#foreach($column in $voStorageFileColumns)
+  /** ${column.columnComment}文件回显列表 */
+  ${column.javaField}List?: StorageFileUploadRespDTO[];
+#end
+#if($table.sub)
+  /** $table.subTable.functionName信息 */
+  ${subclassName}List?: ${subClassName}[];
+#end
+}
+
+/** ${functionName}表单信息 */
+export type ${ClassName} = ${ClassName}SaveDto & ${ClassName}EditDto & ${ClassName}Vo;
 #if($table.sub)
 
 /** ${subTable.functionName}配置信息 */

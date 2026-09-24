@@ -1,12 +1,12 @@
 import request from '@/utils/request'
 import type { Response, TableDataInfo } from '@/types/api/common'
-import type { ${BusinessName}QueryParams, ${ClassName} } from '@/types/api/${moduleName}/${businessName}'
+import type { ${BusinessName}QueryParams, ${ClassName}EditDto, ${ClassName}SaveDto, ${ClassName}Vo } from '@/types/api/${moduleName}/${businessName}'
 
 // 查询${functionName}列表
 #if($table.tree)
-export function list${BusinessName}(query?: ${BusinessName}QueryParams): Promise<Response<${ClassName}[]>> {
+export function list${BusinessName}(query?: ${BusinessName}QueryParams): Promise<Response<${ClassName}Vo[]>> {
 #else
-export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<TableDataInfo<${ClassName}>> {
+export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<TableDataInfo<${ClassName}Vo>> {
 #end
   return request({
     url: '/${moduleName}/${businessName}/list',
@@ -16,7 +16,7 @@ export function list${BusinessName}(query: ${BusinessName}QueryParams): Promise<
 }
 
 // 查询${functionName}详细
-export function get${BusinessName}(${pkColumn.javaField}: number): Promise<Response<${ClassName}>> {
+export function get${BusinessName}(${pkColumn.javaField}: number): Promise<Response<${ClassName}Vo>> {
   return request({
     url: '/${moduleName}/${businessName}/' + ${pkColumn.javaField},
     method: 'get'
@@ -24,7 +24,7 @@ export function get${BusinessName}(${pkColumn.javaField}: number): Promise<Respo
 }
 
 // 新增${functionName}
-export function add${BusinessName}(data: ${ClassName}): Promise<Response<void>> {
+export function add${BusinessName}(data: ${ClassName}SaveDto): Promise<Response<void>> {
   return request({
     url: '/${moduleName}/${businessName}',
     method: 'post',
@@ -33,7 +33,7 @@ export function add${BusinessName}(data: ${ClassName}): Promise<Response<void>> 
 }
 
 // 修改${functionName}
-export function update${BusinessName}(data: ${ClassName}): Promise<Response<void>> {
+export function update${BusinessName}(data: ${ClassName}EditDto): Promise<Response<void>> {
   return request({
     url: '/${moduleName}/${businessName}',
     method: 'put',

@@ -1,5 +1,9 @@
 package ${packageName}.service.impl;
 
+import java.util.ArrayList;
+#if($hasStorageFile)
+import java.util.Arrays;
+#end
 import java.util.List;
 #foreach ($column in $columns)
 #if($column.javaField == 'createTime' || $column.javaField == 'updateTime')
@@ -7,114 +11,192 @@ import com.ruoyi.common.utils.DateUtils;
 #break
 #end
 #end
+import com.ruoyi.common.utils.bean.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+#if($table.sub || $hasStorageFile)
+import org.springframework.transaction.annotation.Transactional;
+#end
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 #if($table.sub)
-import java.util.ArrayList;
 import com.ruoyi.common.utils.StringUtils;
-import org.springframework.transaction.annotation.Transactional;
 import ${packageName}.domain.${subClassName};
 #end
-import ${packageName}.mapper.${ClassName}Mapper;
 import ${packageName}.domain.${ClassName};
+import ${packageName}.dto.${ClassName}EditDto;
+import ${packageName}.dto.${ClassName}QueryDto;
+import ${packageName}.dto.${ClassName}SaveDto;
+import ${packageName}.mapper.${ClassName}Mapper;
 import ${packageName}.service.I${ClassName}Service;
+import ${packageName}.vo.${ClassName}Vo;
+#if($hasStorageFile)
+import com.ruoyi.system.service.BusinessStorageFileField;
+import com.ruoyi.system.service.IBusinessStorageFileService;
+#end
 
 /**
  * ${functionName}Service业务层处理
- * 
+ *
  * @author ${author}
  * @date ${datetime}
  */
 @Service
-// 继承MP的ServiceImpl，让生成Service实现类接入BaseMapper通用CRUD；若依XML方法继续按原业务入口调用。
 public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${ClassName}> implements I${ClassName}Service
 {
+#if($hasStorageFile)
+    /**
+     * 文件字段生命周期映射。
+     * <p>
+     * 代码生成页面选择图片上传或文件上传的字段会进入该列表，业务表字段保存 fileId/fileIds。
+     */
+    private static final List<BusinessStorageFileField<${ClassName}>> STORAGE_FILE_FIELDS = Arrays.asList(
+#foreach($column in $storageFileColumns)
+            BusinessStorageFileField.of("${moduleName}:${businessName}:${column.javaField}", ${ClassName}::get${column.capJavaField}, null)#if($foreach.count != $storageFileColumns.size()),#else);#end
+#end
+
+#end
+#if($hasVoStorageFile)
+    /**
+     * VO 文件回显字段映射。
+     * <p>
+     * 只有列表显示=true 且选择上传组件的字段才会生成 xxxList 回显字段。
+     */
+    private static final List<BusinessStorageFileField<${ClassName}Vo>> VO_STORAGE_FILE_FIELDS = Arrays.asList(
+#foreach($column in $voStorageFileColumns)
+            BusinessStorageFileField.of("${moduleName}:${businessName}:${column.javaField}", ${ClassName}Vo::get${column.capJavaField}, ${ClassName}Vo::set${column.capJavaField}List)#if($foreach.count != $voStorageFileColumns.size()),#else);#end
+#end
+
+#end
     @Autowired
     private ${ClassName}Mapper ${className}Mapper;
 
+#if($hasStorageFile)
+    @Autowired
+    private IBusinessStorageFileService businessStorageFileService;
+
+#end
     /**
      * 查询${functionName}
-     * 
+     *
      * @param ${pkColumn.javaField} ${functionName}主键
      * @return ${functionName}
      */
     @Override
-    public ${ClassName} select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField})
+    public ${ClassName}Vo select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField})
     {
-        return ${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField});
+        ${ClassName}Vo ${className}Vo = to${ClassName}Vo(${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
+#if($hasVoStorageFile)
+        businessStorageFileService.fillStorageFileList(${className}Vo, VO_STORAGE_FILE_FIELDS);
+#end
+        return ${className}Vo;
     }
 
     /**
      * 查询${functionName}列表
-     * 
-     * @param ${className} ${functionName}
+     *
+     * @param ${className} ${functionName}查询条件
      * @return ${functionName}
      */
     @Override
-    public List<${ClassName}> select${ClassName}List(${ClassName} ${className})
+    public List<${ClassName}Vo> select${ClassName}List(${ClassName}QueryDto ${className})
     {
-        return ${className}Mapper.select${ClassName}List(${className});
+        List<${ClassName}Vo> list = to${ClassName}VoList(${className}Mapper.select${ClassName}List(to${ClassName}(${className})));
+#if($hasVoStorageFile)
+        businessStorageFileService.fillStorageFileList(list, VO_STORAGE_FILE_FIELDS);
+#end
+        return list;
+    }
+
+    /**
+     * 查询${functionName}导出列表
+     *
+     * @param ${className} ${functionName}查询条件
+     * @return ${functionName}
+     */
+    @Override
+    public List<${ClassName}> select${ClassName}ExportList(${ClassName}QueryDto ${className})
+    {
+        return ${className}Mapper.select${ClassName}List(to${ClassName}(${className}));
     }
 
     /**
      * 新增${functionName}
-     * 
-     * @param ${className} ${functionName}
+     *
+     * @param ${className} ${functionName}新增参数
      * @return 结果
      */
-#if($table.sub)
-    @Transactional
+#if($table.sub || $hasStorageFile)
+    @Transactional(rollbackFor = Exception.class)
 #end
     @Override
-    public int insert${ClassName}(${ClassName} ${className})
+    public int insert${ClassName}(${ClassName}SaveDto ${className})
     {
+        ${ClassName} entity = to${ClassName}(${className});
 #foreach ($column in $columns)
 #if($column.javaField == 'createTime')
-        ${className}.setCreateTime(DateUtils.getNowDate());
+        entity.setCreateTime(DateUtils.getNowDate());
 #end
 #end
+        int rows = ${className}Mapper.insert${ClassName}(entity);
 #if($table.sub)
-        int rows = ${className}Mapper.insert${ClassName}(${className});
-        insert${subClassName}(${className});
-        return rows;
-#else
-        return ${className}Mapper.insert${ClassName}(${className});
+        insert${subClassName}(entity);
 #end
+#if($hasStorageFile)
+        if (rows > 0)
+        {
+            // 新增成功后用数据库生成的主键作为 bizId，把临时文件绑定到当前业务数据。
+            businessStorageFileService.bindStorageFiles(entity, String.valueOf(entity.get${pkColumn.capJavaField}()),
+                    STORAGE_FILE_FIELDS, businessStorageFileService.getOperator(entity));
+        }
+#end
+        return rows;
     }
 
     /**
      * 修改${functionName}
-     * 
-     * @param ${className} ${functionName}
+     *
+     * @param ${className} ${functionName}编辑参数
      * @return 结果
      */
-#if($table.sub)
-    @Transactional
+#if($table.sub || $hasStorageFile)
+    @Transactional(rollbackFor = Exception.class)
 #end
     @Override
-    public int update${ClassName}(${ClassName} ${className})
+    public int update${ClassName}(${ClassName}EditDto ${className})
     {
+        ${ClassName} entity = to${ClassName}(${className});
+#if($hasStorageFile)
+        ${ClassName} oldEntity = ${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(entity.get${pkColumn.capJavaField}());
+#end
 #foreach ($column in $columns)
 #if($column.javaField == 'updateTime')
-        ${className}.setUpdateTime(DateUtils.getNowDate());
+        entity.setUpdateTime(DateUtils.getNowDate());
 #end
 #end
 #if($table.sub)
-        ${className}Mapper.delete${subClassName}By${subTableFkClassName}(${className}.get${pkColumn.capJavaField}());
-        insert${subClassName}(${className});
+        ${className}Mapper.delete${subClassName}By${subTableFkClassName}(entity.get${pkColumn.capJavaField}());
+        insert${subClassName}(entity);
 #end
-        return ${className}Mapper.update${ClassName}(${className});
+        int rows = ${className}Mapper.update${ClassName}(entity);
+#if($hasStorageFile)
+        if (rows > 0 && oldEntity != null)
+        {
+            // 修改成功后同步新旧 fileId 集合，表单移除的文件会被标记为待删除。
+            businessStorageFileService.syncStorageFiles(entity, oldEntity, String.valueOf(entity.get${pkColumn.capJavaField}()),
+                    STORAGE_FILE_FIELDS, businessStorageFileService.getOperator(entity));
+        }
+#end
+        return rows;
     }
 
     /**
      * 批量删除${functionName}
-     * 
+     *
      * @param ${pkColumn.javaField}s 需要删除的${functionName}主键
      * @return 结果
      */
-#if($table.sub)
-    @Transactional
+#if($table.sub || $hasStorageFile)
+    @Transactional(rollbackFor = Exception.class)
 #end
     @Override
     public int delete${ClassName}By${pkColumn.capJavaField}s(${pkColumn.javaType}[] ${pkColumn.javaField}s)
@@ -122,17 +204,26 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
 #if($table.sub)
         ${className}Mapper.delete${subClassName}By${subTableFkClassName}s(${pkColumn.javaField}s);
 #end
-        return ${className}Mapper.delete${ClassName}By${pkColumn.capJavaField}s(${pkColumn.javaField}s);
+        int rows = ${className}Mapper.delete${ClassName}By${pkColumn.capJavaField}s(${pkColumn.javaField}s);
+#if($hasStorageFile)
+        if (rows > 0)
+        {
+            // 删除业务数据后，按 bizId 和 bizType 统一把业务文件标记为待删除。
+            businessStorageFileService.markStorageFilesWaitDeleteByBiz(${pkColumn.javaField}s, STORAGE_FILE_FIELDS,
+                    businessStorageFileService.getOperator(null));
+        }
+#end
+        return rows;
     }
 
     /**
      * 删除${functionName}信息
-     * 
+     *
      * @param ${pkColumn.javaField} ${functionName}主键
      * @return 结果
      */
-#if($table.sub)
-    @Transactional
+#if($table.sub || $hasStorageFile)
+    @Transactional(rollbackFor = Exception.class)
 #end
     @Override
     public int delete${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField})
@@ -140,13 +231,21 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
 #if($table.sub)
         ${className}Mapper.delete${subClassName}By${subTableFkClassName}(${pkColumn.javaField});
 #end
-        return ${className}Mapper.delete${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField});
+        int rows = ${className}Mapper.delete${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField});
+#if($hasStorageFile)
+        if (rows > 0)
+        {
+            businessStorageFileService.markStorageFilesWaitDeleteByBiz(new Object[] { ${pkColumn.javaField} },
+                    STORAGE_FILE_FIELDS, businessStorageFileService.getOperator(null));
+        }
+#end
+        return rows;
     }
-#if($table.sub)
 
+#if($table.sub)
     /**
      * 新增${subTable.functionName}信息
-     * 
+     *
      * @param ${className} ${functionName}对象
      */
     public void insert${subClassName}(${ClassName} ${className})
@@ -167,5 +266,75 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
             }
         }
     }
+
 #end
+    /**
+     * 将查询 DTO 转换为数据库实体查询条件。
+     */
+    private ${ClassName} to${ClassName}(${ClassName}QueryDto dto)
+    {
+        ${ClassName} entity = new ${ClassName}();
+        if (dto != null)
+        {
+            BeanUtils.copyProperties(dto, entity);
+        }
+        return entity;
+    }
+
+    /**
+     * 将新增 DTO 转换为数据库实体。
+     */
+    private ${ClassName} to${ClassName}(${ClassName}SaveDto dto)
+    {
+        ${ClassName} entity = new ${ClassName}();
+        if (dto != null)
+        {
+            BeanUtils.copyProperties(dto, entity);
+        }
+        return entity;
+    }
+
+    /**
+     * 将编辑 DTO 转换为数据库实体。
+     */
+    private ${ClassName} to${ClassName}(${ClassName}EditDto dto)
+    {
+        ${ClassName} entity = new ${ClassName}();
+        if (dto != null)
+        {
+            BeanUtils.copyProperties(dto, entity);
+        }
+        return entity;
+    }
+
+    /**
+     * 将数据库实体转换为接口返回 VO。
+     */
+    private ${ClassName}Vo to${ClassName}Vo(${ClassName} entity)
+    {
+        if (entity == null)
+        {
+            return null;
+        }
+        ${ClassName}Vo vo = new ${ClassName}Vo();
+        BeanUtils.copyProperties(entity, vo);
+        return vo;
+    }
+
+    /**
+     * 将数据库实体列表转换为接口返回 VO 列表。
+     */
+    private List<${ClassName}Vo> to${ClassName}VoList(List<${ClassName}> entities)
+    {
+        List<${ClassName}Vo> result = new ArrayList<${ClassName}Vo>();
+        if (entities == null || entities.isEmpty())
+        {
+            return result;
+        }
+        for (${ClassName} entity : entities)
+        {
+            result.add(to${ClassName}Vo(entity));
+        }
+        return result;
+    }
 }
