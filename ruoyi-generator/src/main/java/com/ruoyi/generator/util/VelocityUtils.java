@@ -209,6 +209,7 @@ public class VelocityUtils
         templates.add("vm/java/editDto.java.vm");
         templates.add("vm/java/queryDto.java.vm");
         templates.add("vm/java/vo.java.vm");
+        templates.add("vm/java/convert.java.vm");
         templates.add("vm/java/mapper.java.vm");
         templates.add("vm/java/service.java.vm");
         templates.add("vm/java/serviceImpl.java.vm");
@@ -285,6 +286,10 @@ public class VelocityUtils
         else if (template.endsWith("vm/java/vo.java.vm"))
         {
             fileName = StringUtils.format("{}/vo/{}Vo.java", javaPath, className);
+        }
+        else if (template.endsWith("vm/java/convert.java.vm"))
+        {
+            fileName = StringUtils.format("{}/convert/{}Convert.java", javaPath, className);
         }
         else if (template.contains("mapper.java.vm"))
         {

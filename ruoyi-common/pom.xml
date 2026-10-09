@@ -138,6 +138,12 @@
             <artifactId>lombok</artifactId>
         </dependency>
 
+        <!-- MapStruct Bean转换API，提供全局转换配置注解 -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
+
         <!-- OpenAPI3注解供代码生成后的业务实体和Controller使用，不包含Knife4j页面资源 -->
         <dependency>
             <groupId>io.swagger.core.v3</groupId>

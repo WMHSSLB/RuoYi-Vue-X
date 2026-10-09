@@ -1,0 +1,50 @@
+package ${packageName}.convert;
+
+import java.util.List;
+import org.mapstruct.Mapper;
+import org.mapstruct.factory.Mappers;
+import com.ruoyi.common.mapstruct.MapStructConfig;
+import ${packageName}.domain.${ClassName};
+import ${packageName}.dto.${ClassName}EditDto;
+import ${packageName}.dto.${ClassName}QueryDto;
+import ${packageName}.dto.${ClassName}SaveDto;
+import ${packageName}.vo.${ClassName}Vo;
+
+/**
+ * ${functionName}对象转换器
+ * <p>
+ * 统一收敛 DTO、Entity、VO 之间的字段复制逻辑，避免业务代码手写 BeanUtils。
+ *
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Mapper(config = MapStructConfig.class)
+public interface ${ClassName}Convert
+{
+    ${ClassName}Convert INSTANCE = Mappers.getMapper(${ClassName}Convert.class);
+
+    /**
+     * 查询 DTO 转实体查询条件。
+     */
+    ${ClassName} toEntity(${ClassName}QueryDto dto);
+
+    /**
+     * 新增 DTO 转实体。
+     */
+    ${ClassName} toEntity(${ClassName}SaveDto dto);
+
+    /**
+     * 编辑 DTO 转实体。
+     */
+    ${ClassName} toEntity(${ClassName}EditDto dto);
+
+    /**
+     * 实体转接口返回 VO。
+     */
+    ${ClassName}Vo toVo(${ClassName} entity);
+
+    /**
+     * 实体列表转接口返回 VO 列表。
+     */
+    List<${ClassName}Vo> toVoList(List<${ClassName}> entities);
+}

@@ -1,6 +1,8 @@
 package ${packageName}.service.impl;
 
+#if($table.sub)
 import java.util.ArrayList;
+#end
 #if($hasStorageFile)
 import java.util.Arrays;
 #end
@@ -11,7 +13,6 @@ import com.ruoyi.common.utils.DateUtils;
 #break
 #end
 #end
-import com.ruoyi.common.utils.bean.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 #if($table.sub || $hasStorageFile)
@@ -22,6 +23,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.ruoyi.common.utils.StringUtils;
 import ${packageName}.domain.${subClassName};
 #end
+import ${packageName}.convert.${ClassName}Convert;
 import ${packageName}.domain.${ClassName};
 import ${packageName}.dto.${ClassName}EditDto;
 import ${packageName}.dto.${ClassName}QueryDto;
@@ -84,7 +86,7 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     @Override
     public ${ClassName}Vo select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaType} ${pkColumn.javaField})
     {
-        ${ClassName}Vo ${className}Vo = to${ClassName}Vo(${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
+        ${ClassName}Vo ${className}Vo = ${ClassName}Convert.INSTANCE.toVo(${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(${pkColumn.javaField}));
 #if($hasVoStorageFile)
         businessStorageFileService.fillStorageFileList(${className}Vo, VO_STORAGE_FILE_FIELDS);
 #end
@@ -100,7 +102,7 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     @Override
     public List<${ClassName}Vo> select${ClassName}List(${ClassName}QueryDto ${className})
     {
-        List<${ClassName}Vo> list = to${ClassName}VoList(${className}Mapper.select${ClassName}List(to${ClassName}(${className})));
+        List<${ClassName}Vo> list = ${ClassName}Convert.INSTANCE.toVoList(${className}Mapper.select${ClassName}List(${ClassName}Convert.INSTANCE.toEntity(${className})));
 #if($hasVoStorageFile)
         businessStorageFileService.fillStorageFileList(list, VO_STORAGE_FILE_FIELDS);
 #end
@@ -116,7 +118,7 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     @Override
     public List<${ClassName}> select${ClassName}ExportList(${ClassName}QueryDto ${className})
     {
-        return ${className}Mapper.select${ClassName}List(to${ClassName}(${className}));
+        return ${className}Mapper.select${ClassName}List(${ClassName}Convert.INSTANCE.toEntity(${className}));
     }
 
     /**
@@ -131,7 +133,7 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     @Override
     public int insert${ClassName}(${ClassName}SaveDto ${className})
     {
-        ${ClassName} entity = to${ClassName}(${className});
+        ${ClassName} entity = ${ClassName}Convert.INSTANCE.toEntity(${className});
 #foreach ($column in $columns)
 #if($column.javaField == 'createTime')
         entity.setCreateTime(DateUtils.getNowDate());
@@ -164,7 +166,7 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     @Override
     public int update${ClassName}(${ClassName}EditDto ${className})
     {
-        ${ClassName} entity = to${ClassName}(${className});
+        ${ClassName} entity = ${ClassName}Convert.INSTANCE.toEntity(${className});
 #if($hasStorageFile)
         ${ClassName} oldEntity = ${className}Mapper.select${ClassName}By${pkColumn.capJavaField}(entity.get${pkColumn.capJavaField}());
 #end
@@ -268,73 +270,4 @@ public class ${ClassName}ServiceImpl extends ServiceImpl<${ClassName}Mapper, ${C
     }
 
 #end
-    /**
-     * 将查询 DTO 转换为数据库实体查询条件。
-     */
-    private ${ClassName} to${ClassName}(${ClassName}QueryDto dto)
-    {
-        ${ClassName} entity = new ${ClassName}();
-        if (dto != null)
-        {
-            BeanUtils.copyProperties(dto, entity);
-        }
-        return entity;
-    }
-
-    /**
-     * 将新增 DTO 转换为数据库实体。
-     */
-    private ${ClassName} to${ClassName}(${ClassName}SaveDto dto)
-    {
-        ${ClassName} entity = new ${ClassName}();
-        if (dto != null)
-        {
-            BeanUtils.copyProperties(dto, entity);
-        }
-        return entity;
-    }
-
-    /**
-     * 将编辑 DTO 转换为数据库实体。
-     */
-    private ${ClassName} to${ClassName}(${ClassName}EditDto dto)
-    {
-        ${ClassName} entity = new ${ClassName}();
-        if (dto != null)
-        {
-            BeanUtils.copyProperties(dto, entity);
-        }
-        return entity;
-    }
-
-    /**
-     * 将数据库实体转换为接口返回 VO。
-     */
-    private ${ClassName}Vo to${ClassName}Vo(${ClassName} entity)
-    {
-        if (entity == null)
-        {
-            return null;
-        }
-        ${ClassName}Vo vo = new ${ClassName}Vo();
-        BeanUtils.copyProperties(entity, vo);
-        return vo;
-    }
-
-    /**
-     * 将数据库实体列表转换为接口返回 VO 列表。
-     */
-    private List<${ClassName}Vo> to${ClassName}VoList(List<${ClassName}> entities)
-    {
-        List<${ClassName}Vo> result = new ArrayList<${ClassName}Vo>();
-        if (entities == null || entities.isEmpty())
-        {
-            return result;
-        }
-        for (${ClassName} entity : entities)
-        {
-            result.add(to${ClassName}Vo(entity));
-        }
-        return result;
-    }
 }
