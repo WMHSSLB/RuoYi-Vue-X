@@ -30,6 +30,16 @@ public @interface Log
     public BusinessType businessType() default BusinessType.OTHER;
 
     /**
+     * 业务标识，例如 system:node。
+     */
+    public String bizType() default "";
+
+    /**
+     * 业务主键，支持普通字符串或从参数中自动提取。
+     */
+    public String bizId() default "";
+
+    /**
      * 操作人类别
      */
     public OperatorType operatorType() default OperatorType.MANAGE;

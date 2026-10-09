@@ -19,6 +19,9 @@ public class SysOperLog extends BaseEntity
     @Excel(name = "操作序号", cellType = ColumnType.NUMERIC)
     private Long operId;
 
+    @Excel(name = "链路ID")
+    private String traceId;
+
     /** 操作模块 */
     @Excel(name = "操作模块")
     private String title;
@@ -26,6 +29,12 @@ public class SysOperLog extends BaseEntity
     /** 业务类型（0其它 1新增 2修改 3删除） */
     @Excel(name = "业务类型", readConverterExp = "0=其它,1=新增,2=修改,3=删除,4=授权,5=导出,6=导入,7=强退,8=生成代码,9=清空数据")
     private Integer businessType;
+
+    @Excel(name = "业务标识")
+    private String bizType;
+
+    @Excel(name = "业务主键")
+    private String bizId;
 
     /** 业务类型数组 */
     private Integer[] businessTypes;
@@ -46,6 +55,9 @@ public class SysOperLog extends BaseEntity
     @Excel(name = "操作人员")
     private String operName;
 
+    @Excel(name = "用户ID", cellType = ColumnType.NUMERIC)
+    private Long userId;
+
     /** 部门名称 */
     @Excel(name = "部门名称")
     private String deptName;
@@ -62,6 +74,12 @@ public class SysOperLog extends BaseEntity
     @Excel(name = "操作地点")
     private String operLocation;
 
+    @Excel(name = "客户端类型")
+    private String clientType;
+
+    @Excel(name = "User-Agent")
+    private String userAgent;
+
     /** 请求参数 */
     @Excel(name = "请求参数")
     private String operParam;
@@ -77,6 +95,9 @@ public class SysOperLog extends BaseEntity
     /** 错误消息 */
     @Excel(name = "错误消息")
     private String errorMsg;
+
+    @Excel(name = "异常类型")
+    private String errorType;
 
     /** 操作时间 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -97,6 +118,16 @@ public class SysOperLog extends BaseEntity
         this.operId = operId;
     }
 
+    public String getTraceId()
+    {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId)
+    {
+        this.traceId = traceId;
+    }
+
     public String getTitle()
     {
         return title;
@@ -115,6 +146,26 @@ public class SysOperLog extends BaseEntity
     public void setBusinessType(Integer businessType)
     {
         this.businessType = businessType;
+    }
+
+    public String getBizType()
+    {
+        return bizType;
+    }
+
+    public void setBizType(String bizType)
+    {
+        this.bizType = bizType;
+    }
+
+    public String getBizId()
+    {
+        return bizId;
+    }
+
+    public void setBizId(String bizId)
+    {
+        this.bizId = bizId;
     }
 
     public Integer[] getBusinessTypes()
@@ -167,6 +218,16 @@ public class SysOperLog extends BaseEntity
         this.operName = operName;
     }
 
+    public Long getUserId()
+    {
+        return userId;
+    }
+
+    public void setUserId(Long userId)
+    {
+        this.userId = userId;
+    }
+
     public String getDeptName()
     {
         return deptName;
@@ -207,6 +268,26 @@ public class SysOperLog extends BaseEntity
         this.operLocation = operLocation;
     }
 
+    public String getClientType()
+    {
+        return clientType;
+    }
+
+    public void setClientType(String clientType)
+    {
+        this.clientType = clientType;
+    }
+
+    public String getUserAgent()
+    {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent)
+    {
+        this.userAgent = userAgent;
+    }
+
     public String getOperParam()
     {
         return operParam;
@@ -245,6 +326,16 @@ public class SysOperLog extends BaseEntity
     public void setErrorMsg(String errorMsg)
     {
         this.errorMsg = errorMsg;
+    }
+
+    public String getErrorType()
+    {
+        return errorType;
+    }
+
+    public void setErrorType(String errorType)
+    {
+        this.errorType = errorType;
     }
 
     public Date getOperTime()
