@@ -72,6 +72,10 @@ public class VelocityUtils
         velocityContext.put("importList", getImportList(genTable));
         velocityContext.put("dtoImportList", getDtoVoImportList(genTable));
         velocityContext.put("voImportList", getDtoVoImportList(genTable));
+        velocityContext.put("hasSaveNotBlank", hasRequiredDtoColumn(genTable, true, true));
+        velocityContext.put("hasSaveNotNull", hasRequiredDtoColumn(genTable, true, false));
+        velocityContext.put("hasEditNotBlank", hasRequiredDtoColumn(genTable, false, true));
+        velocityContext.put("hasEditNotNull", StringUtils.isNotNull(genTable.getPkColumn()) || hasRequiredDtoColumn(genTable, false, false));
         velocityContext.put("storageFileColumns", getStorageFileColumns(genTable));
         velocityContext.put("voStorageFileColumns", getVoStorageFileColumns(genTable));
         velocityContext.put("hasStorageFile", !getStorageFileColumns(genTable).isEmpty());
@@ -454,6 +458,43 @@ public class VelocityUtils
             }
         }
         return importList;
+    }
+
+    /**
+     * 判断新增/编辑DTO是否需要生成对应的校验注解导入。
+     */
+    private static boolean hasRequiredDtoColumn(GenTable genTable, boolean insertDto, boolean stringType)
+    {
+        if (StringUtils.isNull(genTable) || StringUtils.isEmpty(genTable.getColumns()))
+        {
+            return false;
+        }
+        for (GenTableColumn column : genTable.getColumns())
+        {
+            if (column.isSuperColumn() || !column.isRequired())
+            {
+                continue;
+            }
+            if (insertDto)
+            {
+                GenTableColumn pkColumn = genTable.getPkColumn();
+                boolean incrementPk = column.isPk() && StringUtils.isNotNull(pkColumn) && pkColumn.isIncrement();
+                if (!column.isInsert() || incrementPk)
+                {
+                    continue;
+                }
+            }
+            else if (!column.isEdit() || column.isPk())
+            {
+                continue;
+            }
+            boolean columnStringType = GenConstants.TYPE_STRING.equals(column.getJavaType());
+            if (columnStringType == stringType)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

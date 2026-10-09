@@ -3,6 +3,12 @@ package ${packageName}.dto;
 #foreach ($import in $dtoImportList)
 import ${import};
 #end
+#if($hasSaveNotBlank)
+import jakarta.validation.constraints.NotBlank;
+#end
+#if($hasSaveNotNull)
+import jakarta.validation.constraints.NotNull;
+#end
 #if($table.sub)
 import java.util.List;
 import ${packageName}.domain.${subClassName};
@@ -28,6 +34,13 @@ public class ${ClassName}SaveDto extends BaseEntity
 #foreach ($column in $columns)
 #if($column.insert && !$table.isSuperColumn($column.javaField) && (!$column.pk || !$pkColumn.increment))
     /** $column.columnComment */
+#if($column.required)
+#if($column.javaType == 'String')
+    @NotBlank(message = "$column.columnComment不能为空")
+#else
+    @NotNull(message = "$column.columnComment不能为空")
+#end
+#end
 #if($column.javaType == 'LocalDate')
     @DateTimeFormat(pattern = "yyyy-MM-dd")
     @JsonFormat(pattern = "yyyy-MM-dd")

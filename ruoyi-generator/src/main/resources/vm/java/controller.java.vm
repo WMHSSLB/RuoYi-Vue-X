@@ -4,6 +4,7 @@ import java.util.List;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -100,7 +101,7 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.INSERT)
     @Operation(summary = "新增${functionName}")
     @PostMapping
-    public Response<Void> add(@RequestBody ${ClassName}SaveDto ${className})
+    public Response<Void> add(@Validated @RequestBody ${ClassName}SaveDto ${className})
     {
         return Response.toResponse(${className}Service.insert${ClassName}(${className}));
     }
@@ -112,7 +113,7 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
     @Operation(summary = "修改${functionName}")
     @PutMapping
-    public Response<Void> edit(@RequestBody ${ClassName}EditDto ${className})
+    public Response<Void> edit(@Validated @RequestBody ${ClassName}EditDto ${className})
     {
         return Response.toResponse(${className}Service.update${ClassName}(${className}));
     }
