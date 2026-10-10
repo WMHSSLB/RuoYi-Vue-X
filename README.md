@@ -11,6 +11,18 @@
 
 ## 平台简介
 
+本项目基于若依前后端分离版本改造，后端使用 Spring Boot 3、Spring Security、JWT、Redis、MyBatis、MyBatis-Plus、PageHelper、MapStruct、Knife4j、EasyExcel、x-file-storage 等能力。
+
+当前项目目标不是完全推翻若依原有体系，而是在保留若依原始功能可用的基础上，提供一套以后做业务项目可以直接复用的脚手架能力：
+
+原若依系统管理、权限、菜单、字典、定时任务、代码生成等功能继续可用。
+新业务接口推荐使用统一返回类 Response<T>。
+原若依分页结构 TableDataInfo 保留，列表分页接口继续兼容前端表格生态。
+文件上传改造成基于文件 ID 的业务文件生命周期管理。
+代码生成器支持 SaveDTO、EditDTO、QueryDTO、VO、MapStruct 转换、参数校验、文件字段回显。
+日志能力增强，支持 traceId、操作日志增强、异常日志落库和后台查看。
+更细的专题说明见 ../manual目录下项目使用手册与开发手册。
+
 若依是一套全部开源的快速开发平台，毫无保留给个人及企业免费使用。
 
 * 本仓库为RuoYi-Vue的Spring Boot 3 的版本，保持同步更新。
