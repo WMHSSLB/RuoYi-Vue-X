@@ -185,6 +185,7 @@ insert into sys_menu values('117',  '系统接口', '3',   '3', 'swagger',    't
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', sysdate(), '', null, '操作日志菜单');
 insert into sys_menu values('501',  '登录日志', '108', '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', sysdate(), '', null, '登录日志菜单');
+insert into sys_menu values('502',  '异常日志', '108', '3', 'errorlog',   'monitor/errorlog/index',   '', '', 1, 0, 'C', '0', '0', 'monitor:errorlog:list',   'bug',           'admin', sysdate(), '', null, '异常日志菜单');
 -- 用户管理按钮
 insert into sys_menu values('1000', '用户查询', '100', '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:query',          '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1001', '用户新增', '100', '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:add',            '#', 'admin', sysdate(), '', null, '');
@@ -241,6 +242,11 @@ insert into sys_menu values('1042', '登录查询', '501', '1', '#', '', '', '',
 insert into sys_menu values('1043', '登录删除', '501', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:remove',  '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1044', '日志导出', '501', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:export',  '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1045', '账户解锁', '501', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:unlock',  '#', 'admin', sysdate(), '', null, '');
+-- 异常日志按钮
+insert into sys_menu values('1061', '异常查询', '502', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:errorlog:query',     '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1062', '异常删除', '502', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:errorlog:remove',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1063', '异常导出', '502', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:errorlog:export',    '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1064', '异常清空', '502', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:errorlog:remove',    '#', 'admin', sysdate(), '', null, '');
 -- 在线用户按钮
 insert into sys_menu values('1046', '在线查询', '109', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:query',       '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1047', '批量强退', '109', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:batchLogout', '#', 'admin', sysdate(), '', null, '');
@@ -418,6 +424,13 @@ insert into sys_user_post values ('2', '2');
 -- ----------------------------
 drop table if exists sys_oper_log;
 create table sys_oper_log (
+  trace_id          varchar(64)     default ''                 comment '链路追踪ID',
+  biz_type          varchar(100)    default ''                 comment '业务类型标识',
+  biz_id            varchar(100)    default ''                 comment '业务ID',
+  user_id           bigint(20)      default null               comment '用户ID',
+  client_type       varchar(30)     default ''                 comment '客户端类型',
+  user_agent        varchar(500)    default ''                 comment '用户代理',
+  error_type        varchar(255)    default ''                 comment '异常类型',
   oper_id           bigint(20)      not null auto_increment    comment '日志主键',
   title             varchar(50)     default ''                 comment '模块标题',
   business_type     int(2)          default 0                  comment '业务类型（0其它 1新增 2修改 3删除）',
@@ -429,17 +442,48 @@ create table sys_oper_log (
   oper_url          varchar(255)    default ''                 comment '请求URL',
   oper_ip           varchar(128)    default ''                 comment '主机地址',
   oper_location     varchar(255)    default ''                 comment '操作地点',
-  oper_param        varchar(2000)   default ''                 comment '请求参数',
-  json_result       varchar(2000)   default ''                 comment '返回参数',
+  oper_param        varchar(4000)   default ''                 comment '请求参数',
+  json_result       varchar(4000)   default ''                 comment '返回参数',
   status            int(1)          default 0                  comment '操作状态（0正常 1异常）',
-  error_msg         varchar(2000)   default ''                 comment '错误消息',
+  error_msg         varchar(4000)   default ''                 comment '错误消息',
   oper_time         datetime                                   comment '操作时间',
   cost_time         bigint(20)      default 0                  comment '消耗时间',
   primary key (oper_id),
+  key idx_sys_oper_log_trace_id (trace_id),
+  key idx_sys_oper_log_biz (biz_type, biz_id),
+  key idx_sys_oper_log_user_id (user_id),
   key idx_sys_oper_log_bt (business_type),
   key idx_sys_oper_log_s  (status),
   key idx_sys_oper_log_ot (oper_time)
 ) engine=innodb auto_increment=100 comment = '操作日志记录';
+
+
+-- ----------------------------
+-- 11、系统异常日志表
+-- ----------------------------
+drop table if exists sys_error_log;
+create table sys_error_log (
+  error_id          bigint(20)      not null auto_increment    comment '异常日志ID',
+  trace_id          varchar(64)     default ''                 comment '链路追踪ID',
+  user_id           bigint(20)      default null               comment '用户ID',
+  user_name         varchar(50)     default ''                 comment '用户账号',
+  request_uri       varchar(255)    default ''                 comment '请求地址',
+  request_method    varchar(20)     default ''                 comment '请求方式',
+  exception_name    varchar(255)    default ''                 comment '异常类名',
+  error_message     varchar(2000)   default ''                 comment '异常消息',
+  stack_trace       text                                       comment '异常堆栈',
+  biz_type          varchar(100)    default ''                 comment '业务类型标识',
+  biz_id            varchar(100)    default ''                 comment '业务ID',
+  ipaddr            varchar(128)    default ''                 comment 'IP地址',
+  user_agent        varchar(500)    default ''                 comment '用户代理',
+  error_time        datetime                                  comment '发生时间',
+  primary key (error_id),
+  key idx_sys_error_log_trace_id (trace_id),
+  key idx_sys_error_log_user_id (user_id),
+  key idx_sys_error_log_exception (exception_name),
+  key idx_sys_error_log_error_time (error_time),
+  key idx_sys_error_log_biz (biz_type, biz_id)
+) engine=innodb auto_increment=100 comment = '系统异常日志';
 
 
 -- ----------------------------
