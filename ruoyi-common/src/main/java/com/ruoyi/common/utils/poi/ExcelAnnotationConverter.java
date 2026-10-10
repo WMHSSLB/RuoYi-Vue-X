@@ -23,7 +23,7 @@ import com.ruoyi.common.utils.StringUtils;
  * 代码生成模板会同时保留若依原有@Excel注解和新增@ExcelProperty注解，本转换器负责读取@Excel中的
  * readConverterExp、dictType、dateFormat等配置，让EasyExcel导入导出尽量复用原POI导出规则。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public class ExcelAnnotationConverter implements Converter<Object>
 {

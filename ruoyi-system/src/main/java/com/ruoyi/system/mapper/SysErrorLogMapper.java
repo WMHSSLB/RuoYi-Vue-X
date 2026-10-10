@@ -6,7 +6,7 @@ import com.ruoyi.system.domain.SysErrorLog;
 /**
  * 系统异常日志 数据层
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface SysErrorLogMapper
 {

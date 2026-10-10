@@ -10,7 +10,7 @@ import com.ruoyi.system.service.ISysErrorLogService;
 /**
  * 系统异常日志 服务层处理
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Service
 public class SysErrorLogServiceImpl implements ISysErrorLogService

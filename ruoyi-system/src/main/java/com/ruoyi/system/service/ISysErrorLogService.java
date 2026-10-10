@@ -6,7 +6,7 @@ import com.ruoyi.system.domain.SysErrorLog;
 /**
  * 系统异常日志 服务层
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public interface ISysErrorLogService
 {

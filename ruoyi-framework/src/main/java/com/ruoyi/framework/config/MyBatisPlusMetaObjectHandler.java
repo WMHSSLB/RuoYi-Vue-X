@@ -13,7 +13,7 @@ import com.ruoyi.common.utils.StringUtils;
  * <p>
  * 仅对使用 MyBatis-Plus insert/update API 的实体生效，XML 自定义 SQL 仍按显式赋值逻辑处理。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @Component
 public class MyBatisPlusMetaObjectHandler implements MetaObjectHandler

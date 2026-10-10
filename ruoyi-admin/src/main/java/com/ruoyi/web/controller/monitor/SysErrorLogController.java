@@ -22,7 +22,7 @@ import com.ruoyi.system.service.ISysErrorLogService;
 /**
  * 异常日志记录
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @RestController
 @RequestMapping("/monitor/errorlog")

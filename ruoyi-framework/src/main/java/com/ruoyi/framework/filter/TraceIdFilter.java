@@ -12,7 +12,7 @@ import com.ruoyi.common.utils.TraceIdUtils;
 /**
  * 为每次请求生成链路ID，并写入MDC和响应头。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public class TraceIdFilter extends OncePerRequestFilter
 {

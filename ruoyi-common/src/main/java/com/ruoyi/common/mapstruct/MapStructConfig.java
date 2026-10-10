@@ -10,7 +10,7 @@ import org.mapstruct.ReportingPolicy;
  * <p>
  * 统一忽略未映射目标字段，并禁用 Lombok builder 映射，避免继承自 BaseEntity 的字段被遗漏。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @MapperConfig(
         unmappedTargetPolicy = ReportingPolicy.IGNORE,

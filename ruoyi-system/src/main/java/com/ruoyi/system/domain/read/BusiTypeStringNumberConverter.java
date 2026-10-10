@@ -12,7 +12,7 @@ import com.alibaba.excel.metadata.property.ExcelContentProperty;
  * <p>
  * 数据库中保存的是数字编码，导入导出时转换为用户可读的中文业务类型。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 @SuppressWarnings("rawtypes")
 public class BusiTypeStringNumberConverter implements Converter<Integer>

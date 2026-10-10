@@ -6,7 +6,7 @@ import org.slf4j.MDC;
 /**
  * 链路ID工具类。
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public class TraceIdUtils
 {

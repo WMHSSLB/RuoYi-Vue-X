@@ -8,7 +8,7 @@ import com.ruoyi.common.core.domain.BaseEntity;
 /**
  * 系统异常日志 sys_error_log
  *
- * @author ruoyi
+ * @author 955Kane
  */
 public class SysErrorLog extends BaseEntity
 {
