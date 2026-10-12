@@ -54,6 +54,9 @@
 
 <script setup name="${BusinessName}ViewDrawer">
 import { get${BusinessName} } from '@/api/${moduleName}/${businessName}'
+#if(${dicts} != '')
+import { useDict } from "@/utils/dict"
+#end
 
 #if(${dicts} != '')
 #set($dictsNoSymbol=$dicts.replace("'", ""))

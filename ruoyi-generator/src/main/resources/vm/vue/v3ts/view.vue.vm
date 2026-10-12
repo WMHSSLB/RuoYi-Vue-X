@@ -56,6 +56,7 @@
 import type { ${ClassName} } from "@/types/api/${moduleName}/${businessName}"
 import { get${BusinessName} } from '@/api/${moduleName}/${businessName}'
 #if(${dicts} != '')
+import { useDict } from "@/utils/dict"
 #set($dictsNoSymbol=$dicts.replace("'", ""))
 
 const { ${dictsNoSymbol} } = useDict(${dicts})
