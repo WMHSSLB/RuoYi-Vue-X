@@ -1,13 +1,41 @@
 <p align="center">
 	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
 </p>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi v3.9.2</h1>
-<h4 align="center">基于SpringBoot+Vue前后端分离的Java快速开发框架</h4>
+<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-Vue-X</h1>
+<h4 align="center">面向业务项目复用的 Spring Boot 3 开发脚手架</h4>
 <p align="center">
 	<a href="https://gitee.com/y_project/RuoYi-Vue/stargazers"><img src="https://gitee.com/y_project/RuoYi-Vue/badge/star.svg?theme=dark"></a>
 	<a href="https://gitee.com/y_project/RuoYi-Vue"><img src="https://img.shields.io/badge/RuoYi-v3.9.2-brightgreen.svg"></a>
 	<a href="https://gitee.com/y_project/RuoYi-Vue/blob/master/LICENSE"><img src="https://img.shields.io/github/license/mashape/apistatus.svg"></a>
 </p>
+
+## 项目定位
+
+RuoYi-Vue-X 是一个基于 [RuoYi-Vue](https://github.com/yangzongzhuan/RuoYi-Vue) Spring Boot 3 分支持续演进的后端脚手架。它保留 RuoYi 的系统管理、权限、菜单、字典、定时任务与基础代码生成能力，并针对新业务开发补充了以下能力：
+
+- 统一的 `Response<T>` 接口返回与参数校验约定。
+- 面向 `SaveDTO`、`EditDTO`、`QueryDTO`、`VO` 的代码生成和 MapStruct 转换。
+- 基于文件 ID 的上传、访问和业务文件生命周期管理。
+- `traceId`、增强操作日志与异常日志落库能力。
+- 可直接用于项目启动、开发和部署的使用手册与示例。
+
+> 本仓库是 RuoYi-Vue 的衍生项目，不是 RuoYi 官方仓库。上游代码、原始功能和相关版权声明均归其各自作者所有；使用或再分发时请同时遵守根目录的 [MIT License](./LICENSE)。
+
+## 快速开始
+
+1. 安装 JDK 17、Maven 3.8+、MySQL 5.7+/8.x 和 Redis 6.x/7.x。
+2. 创建数据库并依次执行 `sql/ry_20260417.sql`、`sql/quartz.sql` 及后续文件与日志相关的增量脚本。
+3. 在 `ruoyi-admin/src/main/resources/application-druid.yml` 配置数据库，并检查 `application.yml` 中 Redis 与上传目录配置。
+4. 执行 `mvn clean package`，然后启动 `ruoyi-admin` 模块。
+
+更完整的环境准备、前端联调、存储配置、开发规范与部署说明请阅读 [项目使用手册](./manual/项目使用手册.md)。常用业务代码示例见 [开发示例手册](./manual/开发示例手册.md)。
+
+## 文档与变更
+
+- [项目使用手册](./manual/项目使用手册.md)：环境、启动、配置、业务开发与部署。
+- [开发示例手册](./manual/开发示例手册.md)：Controller、DTO、MapStruct、文件上传、日志等示例。
+- [专题设计文档](./redoc)：功能设计与改造说明。
+- [变更记录](./CHANGELOG.md)：本仓库可追溯的版本变更。
 
 ## 平台简介
 
